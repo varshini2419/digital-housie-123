@@ -31,6 +31,58 @@ const Admin = () => {
   const [logo1, setLogo1] = useState('');
   const [logo2, setLogo2] = useState('');
   const [logo3, setLogo3] = useState('');
+  const [logo1Mode, setLogo1Mode] = useState('url'); // 'url' | 'file'
+  const [logo2Mode, setLogo2Mode] = useState('url');
+  const [logo3Mode, setLogo3Mode] = useState('url');
+  const [logo1FileName, setLogo1FileName] = useState('');
+  const [logo2FileName, setLogo2FileName] = useState('');
+  const [logo3FileName, setLogo3FileName] = useState('');
+
+  const handleImageFileUpload = (file, setLogo, setFileName) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file (PNG, JPG, SVG, WebP).');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Image file size must be under 10MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        // Optimize image dimensions (max 600px) so dice render is crisp and network payload is light
+        const maxDim = 600;
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.88);
+        setLogo(dataUrl);
+        setFileName(file.name);
+      };
+      img.onerror = () => {
+        setLogo(e.target.result);
+        setFileName(file.name);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
 
   const [activeSessions, setActiveSessions] = useState([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
@@ -282,6 +334,9 @@ const Admin = () => {
       setLogo1('');
       setLogo2('');
       setLogo3('');
+      setLogo1FileName('');
+      setLogo2FileName('');
+      setLogo3FileName('');
       fetchActiveSessions();
     } catch (err) {
       setError(err.message);
@@ -746,27 +801,262 @@ const Admin = () => {
                 )}
 
                 {/* Logo Configuration */}
-                <div className="space-y-2.5 border-t border-purple-100/80 pt-4">
-                  <label className="block text-[11px] font-black text-purple-900/60 uppercase tracking-wider">DICE LOGOS (IMAGE URLS)</label>
-                  <div className="flex flex-col gap-2">
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🖼️</span>
-                      <input type="text" value={logo1} onChange={e => setLogo1(e.target.value)} placeholder="Logo 1 URL (e.g. https://example.com/logo1.png)" className="w-full bg-white border border-slate-200/90 rounded-2xl p-3 pl-10 text-xs font-medium text-[#0F172A] placeholder-slate-400 focus:border-purple-500 outline-none" />
-                    </div>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🖼️</span>
-                      <input type="text" value={logo2} onChange={e => setLogo2(e.target.value)} placeholder="Logo 2 URL" className="w-full bg-white border border-slate-200/90 rounded-2xl p-3 pl-10 text-xs font-medium text-[#0F172A] placeholder-slate-400 focus:border-purple-500 outline-none" />
-                    </div>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🖼️</span>
-                      <input type="text" value={logo3} onChange={e => setLogo3(e.target.value)} placeholder="Logo 3 URL" className="w-full bg-white border border-slate-200/90 rounded-2xl p-3 pl-10 text-xs font-medium text-[#0F172A] placeholder-slate-400 focus:border-purple-500 outline-none" />
-                    </div>
+                <div className="space-y-3 border-t border-purple-100/80 pt-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <label className="block text-[11px] font-black text-purple-900/70 uppercase tracking-wider">
+                      DICE LOGOS (3 SIDES)
+                    </label>
+                    <span className="text-[10px] text-purple-700/80 font-semibold bg-purple-50 border border-purple-100 px-2 py-0.5 rounded-full w-fit">
+                      🎲 Displays on 3D die in user gameplay
+                    </span>
                   </div>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Provide each logo via <strong>Web Link</strong> or <strong>Attach Image</strong> from your device.
+                  </p>
+
+                  <div className="space-y-2.5">
+                    {[
+                      {
+                        id: 1,
+                        label: 'Logo 1',
+                        faceDesc: 'Top & Left Faces',
+                        val: logo1,
+                        setVal: setLogo1,
+                        mode: logo1Mode,
+                        setMode: setLogo1Mode,
+                        fileName: logo1FileName,
+                        setFileName: setLogo1FileName
+                      },
+                      {
+                        id: 2,
+                        label: 'Logo 2',
+                        faceDesc: 'Bottom & Back Faces',
+                        val: logo2,
+                        setVal: setLogo2,
+                        mode: logo2Mode,
+                        setMode: setLogo2Mode,
+                        fileName: logo2FileName,
+                        setFileName: setLogo2FileName
+                      },
+                      {
+                        id: 3,
+                        label: 'Logo 3',
+                        faceDesc: 'Right Face',
+                        val: logo3,
+                        setVal: setLogo3,
+                        mode: logo3Mode,
+                        setMode: setLogo3Mode,
+                        fileName: logo3FileName,
+                        setFileName: setLogo3FileName
+                      }
+                    ].map((item) => (
+                      <div key={item.id} className="bg-white border border-slate-200/90 rounded-2xl p-3 shadow-2xs space-y-2">
+                        {/* Header & Mode Switcher */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-5 h-5 rounded-md bg-purple-100 text-purple-700 flex items-center justify-center text-[10px] font-black">
+                              {item.id}
+                            </span>
+                            <span className="text-xs font-bold text-[#0F172A]">{item.label}</span>
+                            <span className="text-[10px] font-medium text-slate-400">({item.faceDesc})</span>
+                          </div>
+
+                          {/* Parallel Mode Switcher: Link or Attach File */}
+                          <div className="inline-flex bg-slate-100 p-0.5 rounded-lg border border-slate-200/60">
+                            <button
+                              type="button"
+                              onClick={() => item.setMode('url')}
+                              className={`px-2.5 py-1 rounded-md text-[10.5px] font-bold transition-all cursor-pointer ${
+                                item.mode === 'url'
+                                  ? 'bg-white text-purple-700 shadow-2xs'
+                                  : 'text-slate-500 hover:text-slate-800'
+                              }`}
+                            >
+                              🔗 Link
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => item.setMode('file')}
+                              className={`px-2.5 py-1 rounded-md text-[10.5px] font-bold transition-all cursor-pointer ${
+                                item.mode === 'file'
+                                  ? 'bg-white text-purple-700 shadow-2xs'
+                                  : 'text-slate-500 hover:text-slate-800'
+                              }`}
+                            >
+                              📎 Attach Image
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Mode 1: Image Link (URL) */}
+                        {item.mode === 'url' ? (
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🌐</span>
+                            <input
+                              type="text"
+                              value={item.val.startsWith('data:') ? '' : item.val}
+                              onChange={(e) => {
+                                item.setVal(e.target.value);
+                                item.setFileName('');
+                              }}
+                              placeholder={`Paste ${item.label} URL (e.g. https://.../logo.png)`}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 pl-8 pr-8 text-xs font-medium text-[#0F172A] placeholder-slate-400 focus:border-purple-500 focus:bg-white outline-none transition-all"
+                            />
+                            {item.val && !item.val.startsWith('data:') && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  item.setVal('');
+                                  item.setFileName('');
+                                }}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 text-xs font-bold cursor-pointer p-0.5"
+                                title="Clear link"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          /* Mode 2: Attach Image (File Upload) */
+                          <div>
+                            <input
+                              type="file"
+                              id={`logo-file-${item.id}`}
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  handleImageFileUpload(e.target.files[0], item.setVal, item.setFileName);
+                                }
+                              }}
+                            />
+                            {item.val && item.val.startsWith('data:') ? (
+                              <div className="flex items-center justify-between p-2 bg-purple-50/70 border border-purple-200/90 rounded-xl">
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                  <img
+                                    src={item.val}
+                                    alt="Attached"
+                                    className="w-8 h-8 object-contain rounded-lg bg-white border border-purple-200 shrink-0"
+                                  />
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold text-purple-900 truncate">
+                                      {item.fileName || 'Attached Image'}
+                                    </p>
+                                    <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60">
+                                      ✓ Attached
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <label
+                                    htmlFor={`logo-file-${item.id}`}
+                                    className="text-[11px] font-bold text-purple-700 bg-white border border-purple-200 px-2 py-1 rounded-lg hover:bg-purple-100 cursor-pointer shadow-2xs"
+                                  >
+                                    Change
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      item.setVal('');
+                                      item.setFileName('');
+                                    }}
+                                    className="text-[11px] font-bold text-red-600 bg-white border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50 cursor-pointer shadow-2xs"
+                                    title="Remove attached image"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <label
+                                htmlFor={`logo-file-${item.id}`}
+                                className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:border-purple-400 bg-slate-50/70 hover:bg-purple-50/30 rounded-xl py-3 px-2 cursor-pointer transition-all text-center group"
+                              >
+                                <div className="flex items-center gap-1.5 text-slate-500 group-hover:text-purple-600">
+                                  <span className="text-sm">📁</span>
+                                  <span className="text-xs font-bold">Choose or Attach Image</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 mt-0.5">
+                                  PNG, JPG, SVG, WebP (Auto-optimized for dice)
+                                </span>
+                              </label>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Active Image Status & Mini Preview */}
+                        {item.val && (
+                          <div className="flex items-center justify-between pt-1 px-1 border-t border-slate-100">
+                            <span className="text-[10.5px] font-semibold text-slate-600 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                              {item.val.startsWith('data:') ? 'Attached Image Active' : 'Image Link Active'}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={item.val}
+                                alt="Preview"
+                                className="w-6 h-6 object-contain rounded bg-white border border-slate-200 shadow-2xs"
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  item.setVal('');
+                                  item.setFileName('');
+                                }}
+                                className="text-slate-400 hover:text-red-500 text-[11px] font-bold cursor-pointer"
+                                title="Clear"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Combined Live 3D Dice Preview Card */}
                   {(logo1 || logo2 || logo3) && (
-                    <div className="flex gap-2 p-2 bg-white border border-slate-200 rounded-xl">
-                      {logo1 && <img src={logo1} alt="Logo 1" className="w-8 h-8 object-contain rounded bg-slate-50" onError={(e) => e.target.style.display='none'} />}
-                      {logo2 && <img src={logo2} alt="Logo 2" className="w-8 h-8 object-contain rounded bg-slate-50" onError={(e) => e.target.style.display='none'} />}
-                      {logo3 && <img src={logo3} alt="Logo 3" className="w-8 h-8 object-contain rounded bg-slate-50" onError={(e) => e.target.style.display='none'} />}
+                    <div className="p-3 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200/80 rounded-2xl flex items-center justify-between gap-2 shadow-2xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">🎲</span>
+                        <div>
+                          <p className="text-xs font-black text-purple-900">Dice Logos Ready</p>
+                          <p className="text-[10px] text-purple-700 font-medium">
+                            Configured logos will render on the rolling dice faces for all players.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-1.5 items-center bg-white p-1.5 rounded-xl border border-purple-200 shadow-2xs shrink-0">
+                        {logo1 && (
+                          <img
+                            src={logo1}
+                            alt="Logo 1"
+                            title="Logo 1 (Top/Left)"
+                            className="w-7 h-7 object-contain rounded bg-slate-50 border border-slate-100"
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                        )}
+                        {logo2 && (
+                          <img
+                            src={logo2}
+                            alt="Logo 2"
+                            title="Logo 2 (Bottom/Back)"
+                            className="w-7 h-7 object-contain rounded bg-slate-50 border border-slate-100"
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                        )}
+                        {logo3 && (
+                          <img
+                            src={logo3}
+                            alt="Logo 3"
+                            title="Logo 3 (Right)"
+                            className="w-7 h-7 object-contain rounded bg-slate-50 border border-slate-100"
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -920,6 +1210,22 @@ const Admin = () => {
                                 <span>🎟️ Tickets Allocated:</span>
                                 <strong className="text-purple-700 font-extrabold">{session.totalPlayers}</strong>
                               </p>
+                              {Array.isArray(session.logos) && session.logos.some(l => !!l) && (
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase">Logos:</span>
+                                  <div className="flex gap-1 items-center">
+                                    {session.logos.filter(l => !!l).map((logoUrl, lIdx) => (
+                                      <img
+                                        key={lIdx}
+                                        src={logoUrl}
+                                        alt="Logo"
+                                        className="w-5 h-5 object-contain rounded bg-slate-50 border border-slate-200 shadow-2xs"
+                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
 
