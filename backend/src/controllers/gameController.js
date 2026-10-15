@@ -86,7 +86,10 @@ exports.createSession = async (req, res) => {
 
 exports.getAllSessions = async (req, res) => {
     try {
-        const sessions = await GameSession.find().sort({ createdAt: -1 });
+        const sessions = await GameSession.find()
+            .select('-drawnNumbers')
+            .sort({ createdAt: -1 })
+            .lean();
         res.json(sessions);
     } catch (err) {
         res.status(500).json({ message: 'Server error fetching sessions' });
@@ -95,10 +98,41 @@ exports.getAllSessions = async (req, res) => {
 
 exports.getSessionTickets = async (req, res) => {
     try {
-        const tickets = await Ticket.find({ sessionId: req.params.id })
+        const rawTickets = await Ticket.find({ sessionId: req.params.id })
             .select('ticketCode playerStatus playerName isActive requestStatus createdAt')
-            .sort({ createdAt: 1 });
-        res.json(tickets);
+            .lean();
+
+        // Sort: user tickets first (requests/names/active/playing), unfilled tickets last.
+        // Within each group, sort numerically by ticketCode in serial order (1, 2, 3...)
+        rawTickets.sort((a, b) => {
+            const aFilled = Boolean(
+                a.requestStatus === 'PENDING' ||
+                a.requestStatus === 'ACCEPTED' ||
+                (a.playerName && a.playerName.trim() !== '') ||
+                a.isActive ||
+                a.playerStatus === 'PLAYING'
+            );
+            const bFilled = Boolean(
+                b.requestStatus === 'PENDING' ||
+                b.requestStatus === 'ACCEPTED' ||
+                (b.playerName && b.playerName.trim() !== '') ||
+                b.isActive ||
+                b.playerStatus === 'PLAYING'
+            );
+
+            if (aFilled && !bFilled) return -1;
+            if (!aFilled && bFilled) return 1;
+
+            if (a.requestStatus === 'PENDING' && b.requestStatus !== 'PENDING') return -1;
+            if (a.requestStatus !== 'PENDING' && b.requestStatus === 'PENDING') return 1;
+
+            return (a.ticketCode || '').localeCompare(b.ticketCode || '', undefined, {
+                numeric: true,
+                sensitivity: 'base'
+            });
+        });
+
+        res.json(rawTickets);
     } catch (err) {
         res.status(500).json({ message: 'Server error fetching tickets' });
     }

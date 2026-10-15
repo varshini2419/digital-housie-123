@@ -43,7 +43,7 @@ console.log('  PASSED: Out-of-range handled safely.\n');
 // 3. Winner announcements
 console.log('3. Verifying Winner announcements:');
 const winMsg1 = getTeluguWinnerAnnouncement('రమేష్', 'జల్దీ 5');
-if (winMsg1 !== 'రమేష్ గారు జల్దీ 5 గెలుచుకున్నారు!') {
+if (winMsg1 !== 'అభినందనలు! మీరు జల్దీ 5 గెలుచుకున్నారు!') {
   console.error(`  FAIL: Winner message 1 mismatch: "${winMsg1}"`);
   failed++;
 } else {

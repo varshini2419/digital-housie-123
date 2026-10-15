@@ -79,12 +79,15 @@ const WinnerPopup = ({ winner, countdown, onClose, onBackToGame, instanceId = 0,
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
                 className="flex flex-col items-center"
               >
-                <h2 className="text-sm sm:text-base font-black text-[#00C16E] uppercase tracking-[0.3em] mb-3">
-                  🎉 Winner Announced 🎉
+                <h2 className="text-sm sm:text-base font-black text-[#00C16E] uppercase tracking-[0.3em] mb-2">
+                  🎉 Congratulations! / అభినందనలు! 🎉
                 </h2>
-                <h1 className="text-5xl sm:text-7xl font-black text-[#1B2430] mb-8 leading-tight tracking-tighter drop-shadow-sm">
-                  {displayName}
+                <h1 className="text-4xl sm:text-6xl font-black text-[#1B2430] mb-3 leading-tight tracking-tighter drop-shadow-sm">
+                  {winner?.prizeName}
                 </h1>
+                <p className="text-sm sm:text-base font-bold text-emerald-600 mb-6">
+                  మీరు {winner?.prizeName} గెలుచుకున్నారు!
+                </p>
               </motion.div>
               
               {/* Prize Details Section */}

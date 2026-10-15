@@ -217,11 +217,8 @@ const Game = () => {
            setPopupInstanceId(id => id + 1);
            activeWinnerRef.current = currentWinner;
            setActiveWinner(currentWinner);
-           const isPlayer = !currentWinner.winnerName || currentWinner.winnerName.trim() === '' || currentWinner.winnerName === 'Player';
            announceWinner(
-             isPlayer
-               ? `అభినందనలు! టికెట్ నంబర్ ${currentWinner.winnerTicket} వారు ${currentWinner.prizeName} గెలుచుకున్నారు.`
-               : `అభినందనలు ${currentWinner.winnerName} గారు! మీరు ${currentWinner.prizeName} గెలుచుకున్నారు.`
+             `అభినందనలు! మీరు ${currentWinner.prizeName} గెలుచుకున్నారు!`
            );
         }
       }

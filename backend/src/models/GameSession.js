@@ -32,4 +32,6 @@ const GameSessionSchema = new mongoose.Schema({
     stateVersion: { type: Number, default: 0 }
 }, { timestamps: true });
 
+GameSessionSchema.index({ createdAt: -1 });
+
 module.exports = mongoose.model('GameSession', GameSessionSchema);

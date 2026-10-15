@@ -15,5 +15,7 @@ const TicketSchema = new mongoose.Schema({
 
 // Ensure unique ticket codes within a session
 TicketSchema.index({ sessionId: 1, ticketCode: 1 }, { unique: true });
+TicketSchema.index({ sessionId: 1, requestStatus: 1 });
+TicketSchema.index({ sessionId: 1, createdAt: 1 });
 
 module.exports = mongoose.model('Ticket', TicketSchema);

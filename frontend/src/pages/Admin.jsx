@@ -85,7 +85,14 @@ const Admin = () => {
     reader.readAsDataURL(file);
   };
 
-  const [activeSessions, setActiveSessions] = useState([]);
+  const [activeSessions, setActiveSessions] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cachedActiveSessions');
+      return cached ? JSON.parse(cached) : [];
+    } catch (_) {
+      return [];
+    }
+  });
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [sessionError, setSessionError] = useState('');
 
@@ -213,6 +220,11 @@ const Admin = () => {
           time: new Date(),
           message: `Player joined with ticket #${ticketCode}`
         }, ...prev.slice(0, 19)]);
+        setSessionTickets(prev => prev.map(t => t.ticketCode === ticketCode ? {
+          ...t,
+          playerStatus: 'PLAYING',
+          isActive: true
+        } : t));
         if (liveSession?._id) fetchSessionTicketsSilent(liveSession._id);
       });
 
@@ -221,6 +233,12 @@ const Admin = () => {
           time: new Date(),
           message: `📩 Join Request from ${playerName || 'Player'} (#${ticketCode})`
         }, ...prev.slice(0, 19)]);
+        // Instantly push request to the top of ticket list in real time
+        setSessionTickets(prev => prev.map(t => t.ticketCode === ticketCode ? {
+          ...t,
+          playerName: playerName || t.playerName,
+          requestStatus: 'PENDING'
+        } : t));
         if (liveSession?._id) fetchSessionTicketsSilent(liveSession._id);
       });
 
@@ -263,7 +281,11 @@ const Admin = () => {
         if (res.status === 401) handleLogout();
         throw new Error(data.message || 'Failed to fetch sessions');
       }
-      setActiveSessions(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setActiveSessions(list);
+      try {
+        localStorage.setItem('cachedActiveSessions', JSON.stringify(list));
+      } catch (_) {}
     } catch (err) {
       console.error(err);
       setSessionError(err.message || 'Error fetching sessions');
@@ -513,6 +535,17 @@ const Admin = () => {
 
   const monitorSession = (session) => {
     setLiveSession(session);
+    // Instant hydration: immediately render monitor view without lagging or waiting for socket roundtrip
+    setAdminStats({
+      ...session,
+      gameStatus: session.gameStatus || 'WAITING',
+      currentNumber: session.currentNumber || null,
+      drawnNumbers: session.drawnNumbers || [],
+      remainingNumbers: 90 - (session.drawnNumbers?.length || 0),
+      onlineCount: 0,
+      totalJoined: session.totalPlayers || 0,
+      prizes: session.prizes || []
+    });
     setViewMode('monitor');
     setActivityFeed([]);
   };
@@ -560,21 +593,53 @@ const Admin = () => {
     }
   };
 
+  const isFilledTicket = (t) => {
+    if (!t) return false;
+    return Boolean(
+      t.requestStatus === 'PENDING' ||
+      t.requestStatus === 'ACCEPTED' ||
+      (t.playerName && t.playerName.trim() !== '') ||
+      t.isActive ||
+      t.playerStatus === 'PLAYING'
+    );
+  };
+
+  const sortTickets = (tickets = []) => {
+    return [...tickets].sort((a, b) => {
+      const aFilled = isFilledTicket(a);
+      const bFilled = isFilledTicket(b);
+
+      // 1. User filled/requested tickets appear first, unfilled tickets appear last
+      if (aFilled && !bFilled) return -1;
+      if (!aFilled && bFilled) return 1;
+
+      // 2. Pending user requests appear first among user tickets
+      if (a.requestStatus === 'PENDING' && b.requestStatus !== 'PENDING') return -1;
+      if (a.requestStatus !== 'PENDING' && b.requestStatus === 'PENDING') return 1;
+
+      // 3. Serial number order: natural numeric sort on ticketCode (1, 2, 3...)
+      return (a.ticketCode || '').localeCompare(b.ticketCode || '', undefined, {
+        numeric: true,
+        sensitivity: 'base'
+      });
+    });
+  };
+
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     alert(`Copied ticket code: ${text}`);
   };
 
   const copyAllTickets = () => {
-    const list = sessionTickets.map((t, idx) => `${idx + 1}. Code: ${t.ticketCode} | Player: ${t.playerName || 'Unassigned'} | Active: ${t.isActive ? 'Yes' : 'No'}`).join('\n');
+    const list = sortTickets(sessionTickets).map((t, idx) => `${idx + 1}. Code: ${t.ticketCode} | Player: ${t.playerName || 'Unassigned'} | Active: ${t.isActive ? 'Yes' : 'No'}`).join('\n');
     navigator.clipboard.writeText(list);
-    alert('All Ticket details copied to clipboard!');
+    alert('All Ticket details copied to clipboard in serial order!');
   };
 
   const exportCSV = () => {
-    const csvRows = ['S.No,Ticket Code,Player Name,Active Access,Player Status'];
-    sessionTickets.forEach((t, idx) => {
-      csvRows.push(`${idx + 1},${t.ticketCode},"${t.playerName || ''}",${t.isActive ? 'Active' : 'Inactive'},${t.playerStatus}`);
+    const csvRows = ['S.No,Ticket Code,Player Name,Active Access,Player Status,Request Status'];
+    sortTickets(sessionTickets).forEach((t, idx) => {
+      csvRows.push(`${idx + 1},${t.ticketCode},"${t.playerName || ''}",${t.isActive ? 'Active' : 'Inactive'},${t.playerStatus},${t.requestStatus || 'NONE'}`);
     });
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -1330,16 +1395,30 @@ const Admin = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-border text-sm">
-                  {(Array.isArray(sessionTickets) ? sessionTickets : []).filter(t => {
+                  {sortTickets((Array.isArray(sessionTickets) ? sessionTickets : []).filter(t => {
                     if (!ticketSearch) return true;
                     const q = ticketSearch.trim().toLowerCase();
                     const codeMatch = (t.ticketCode || '').toLowerCase().includes(q);
                     const nameMatch = (t.playerName || '').toLowerCase().includes(q);
                     return codeMatch || nameMatch;
-                  }).map((ticket, index) => (
-                    <tr key={ticket.ticketCode} className="hover:bg-brand-bg/60 transition-colors">
-                      <td className="p-4 text-brand-text-muted font-medium">{index + 1}</td>
-                      <td className="p-4 font-mono text-brand-emerald font-extrabold text-base">{ticket.ticketCode}</td>
+                  })).map((ticket, index) => {
+                    const filled = isFilledTicket(ticket);
+                    return (
+                    <tr key={ticket.ticketCode} className={`transition-colors ${ticket.requestStatus === 'PENDING' ? 'bg-amber-500/10 hover:bg-amber-500/15' : filled ? 'hover:bg-brand-bg/80' : 'hover:bg-brand-bg/40 opacity-70'}`}>
+                      <td className="p-4 text-brand-text-muted font-bold">{index + 1}</td>
+                      <td className="p-4 font-mono text-brand-emerald font-extrabold text-base flex items-center gap-2">
+                        <span>{ticket.ticketCode}</span>
+                        {ticket.requestStatus === 'PENDING' && (
+                          <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500 text-white px-2 py-0.5 rounded-full animate-pulse shadow-xs">
+                            New Request
+                          </span>
+                        )}
+                        {ticket.requestStatus === 'ACCEPTED' && (
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                            User
+                          </span>
+                        )}
+                      </td>
                       <td className="p-4">
                         <input 
                           type="text" 
@@ -1423,7 +1502,8 @@ const Admin = () => {
                         <button onClick={() => copyToClipboard(ticket.ticketCode)} className="text-brand-blue hover:underline text-xs font-bold cursor-pointer">Copy Code</button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

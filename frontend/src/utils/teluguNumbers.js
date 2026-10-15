@@ -121,14 +121,14 @@ export const getTeluguAnnouncement = (num) => {
 
 /**
  * Returns a natural Telugu announcement for a prize winner.
- * @param {string} winnerName 
- * @param {string} prizeName 
- * @returns {string}
+ * Announces congratulations and the specific prize won without speaking the player's name.
+ * @param {string} winnerName (kept for backward compatibility, omitted from speech)
+ * @param {string} prizeName Name of the prize won
+ * @returns {string} e.g. "అభినందనలు! మీరు జల్దీ 5 గెలుచుకున్నారు!"
  */
 export const getTeluguWinnerAnnouncement = (winnerName, prizeName) => {
-  const name = winnerName || 'విజేత';
-  const prize = prizeName || 'బహుమతి';
-  return `${name} గారు ${prize} గెలుచుకున్నారు!`;
+  const prize = (typeof winnerName === 'string' && !prizeName ? winnerName : prizeName) || 'బహుమతి';
+  return `అభినందనలు! మీరు ${prize} గెలుచుకున్నారు!`;
 };
 
 /**
