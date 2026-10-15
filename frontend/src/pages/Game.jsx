@@ -4,10 +4,50 @@ import io from 'socket.io-client';
 import { motion, AnimatePresence } from 'framer-motion';
 import useGameStore from '../store/useGameStore';
 import useSpeech from '../hooks/useSpeech';
+import { getTeluguNumberWord } from '../utils/teluguNumbers';
 import WinnerPopup from '../components/WinnerPopup';
 import GameStatusTimer from '../components/GameStatusTimer';
 import RollingDice from '../components/RollingDice';
 import { Check, Ticket, Clock, ChevronRight } from 'lucide-react';
+
+// Realistic touch feel feedback: Haptic vibration + Crisp physical click sound
+let touchAudioCtx = null;
+const triggerTouchFeel = () => {
+  // 1. Haptic vibration on supported devices (Mobile / Touchscreens)
+  if (typeof window !== 'undefined' && 'navigator' in window && 'vibrate' in navigator) {
+    try {
+      navigator.vibrate(20);
+    } catch (_) {}
+  }
+
+  // 2. Synthesized realistic tactile switch/press sound (Web Audio API)
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    if (!touchAudioCtx || touchAudioCtx.state === 'closed') {
+      touchAudioCtx = new AudioContextClass();
+    }
+    if (touchAudioCtx.state === 'suspended') {
+      touchAudioCtx.resume();
+    }
+    const ctx = touchAudioCtx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(240, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(45, ctx.currentTime + 0.035);
+
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.035);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.035);
+  } catch (_) {}
+};
 
 const MemoizedNumberChip = React.memo(({ num, isMarked, isPending, canMark, onMark, cIndex }) => {
   const isEvenCol = cIndex % 2 === 0;
@@ -17,23 +57,37 @@ const MemoizedNumberChip = React.memo(({ num, isMarked, isPending, canMark, onMa
     return <div className={`w-full h-full min-h-[3rem] border-r border-b border-blue-300 ${baseBg}`} />;
   }
 
+  const handleClick = () => {
+    triggerTouchFeel();
+    onMark(num);
+  };
+
   return (
-    <div 
-      onClick={() => onMark(num)}
-      className={`w-full h-full min-h-[3rem] border-r border-b border-blue-300 flex items-center justify-center font-bold text-lg sm:text-2xl lg:text-3xl relative select-none transition-colors duration-200
-        ${!isMarked && !isPending ? `${baseBg} text-[#0F172A] ${canMark ? 'hover:bg-blue-100 cursor-pointer' : ''}` : ''}
-        ${isMarked ? 'bg-[#10B981] text-white z-10' : ''}
+    <motion.button 
+      type="button"
+      whileTap={{ scale: 0.88, y: 1.5 }}
+      whileHover={canMark ? { scale: 1.02 } : {}}
+      transition={{ type: "spring", stiffness: 600, damping: 25 }}
+      onClick={handleClick}
+      className={`w-full h-full min-h-[3rem] border-r border-b border-blue-300 flex items-center justify-center font-bold text-lg sm:text-2xl lg:text-3xl relative select-none transition-all duration-100 outline-none
+        active:shadow-[inset_0_3px_6px_rgba(0,0,0,0.22)] active:z-20
+        ${!isMarked && !isPending ? `${baseBg} text-[#0F172A] ${canMark ? 'hover:bg-blue-100 cursor-pointer active:bg-blue-200' : 'cursor-pointer active:bg-blue-100/60'}` : ''}
+        ${isMarked ? 'bg-[#10B981] text-white z-10 shadow-sm active:bg-emerald-600' : ''}
         ${isPending ? 'bg-amber-400 text-amber-900 z-10 animate-pulse' : ''}
-        ${canMark && !isPending ? 'cursor-pointer' : ''}
       `}
     >
-      <span>{num}</span>
+      <span className="pointer-events-none drop-shadow-xs">{num}</span>
       {isMarked && (
-        <div className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 text-white pointer-events-none flex items-center justify-center">
+        <motion.div 
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 600, damping: 20 }}
+          className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 text-white pointer-events-none flex items-center justify-center"
+        >
           <Check className="w-3 h-3 sm:w-4 sm:h-4 stroke-[4]" />
-        </div>
+        </motion.div>
       )}
-    </div>
+    </motion.button>
   );
 });
 
@@ -72,7 +126,7 @@ const Game = () => {
   const lastGameSyncRef = useRef(0);
   const [isTimerLagging, setIsTimerLagging] = useState(false);
 
-  const { isVoiceEnabled, toggleVoice, announceNumber, announceWinner, unlockAudio } = useSpeech();
+  const { isVoiceEnabled, toggleVoice, announceNumber, replayNumber, announceWinner, unlockAudio, voiceNotice, hasNativeTeluguVoice, activeVoiceName } = useSpeech();
 
   const makeWinnerKey = (w) => {
     if (!w) return null;
@@ -166,8 +220,8 @@ const Game = () => {
            const isPlayer = !currentWinner.winnerName || currentWinner.winnerName.trim() === '' || currentWinner.winnerName === 'Player';
            announceWinner(
              isPlayer
-               ? `Congratulations! Ticket Number ${currentWinner.winnerTicket} won ${currentWinner.prizeName}.`
-               : `Congratulations ${currentWinner.winnerName}! You won ${currentWinner.prizeName}.`
+               ? `అభినందనలు! టికెట్ నంబర్ ${currentWinner.winnerTicket} వారు ${currentWinner.prizeName} గెలుచుకున్నారు.`
+               : `అభినందనలు ${currentWinner.winnerName} గారు! మీరు ${currentWinner.prizeName} గెలుచుకున్నారు.`
            );
         }
       }
@@ -319,15 +373,10 @@ const Game = () => {
     <div className={`w-full max-w-[800px] mx-auto bg-white rounded-3xl p-4 sm:p-6 shadow-sm border border-blue-100/50 ${gameState === 'LIVE' ? 'ring-2 ring-emerald-400/20' : ''}`}>
       
       {/* Header */}
-      <div className="flex flex-row justify-between items-start sm:items-center mb-4 sm:mb-5 gap-4">
-        <div>
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#0F172A] uppercase tracking-tight leading-none mb-1.5">
-            Your Ticket
-          </h2>
-          <p className="text-xs sm:text-sm font-bold text-[#2563EB]">
-            Press the numbers that are generated and check your matches!
-          </p>
-        </div>
+      <div className="flex flex-row justify-between items-center mb-3 sm:mb-4 gap-4">
+        <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#0F172A] uppercase tracking-tight leading-none">
+          Your Ticket
+        </h2>
         
         {/* Active Pill Badge */}
         <div className="px-3 sm:px-4 py-1.5 rounded-full bg-[#ECFDF5] text-[#047857] text-xs sm:text-sm font-bold tracking-wider flex items-center gap-2 shrink-0">
@@ -336,17 +385,8 @@ const Game = () => {
         </div>
       </div>
 
-      {/* Decorative Divider */}
-      <div className="w-full flex items-center justify-center gap-2 mb-6">
-        <div className="h-[1px] flex-1 bg-blue-200"></div>
-        <div className="w-1.5 h-1.5 rotate-45 bg-[#2563EB]"></div>
-        <div className="w-2 h-2 rotate-45 bg-[#2563EB]"></div>
-        <div className="w-1.5 h-1.5 rotate-45 bg-[#2563EB]"></div>
-        <div className="h-[1px] flex-1 bg-blue-200"></div>
-      </div>
-
       {/* Ticket Frame */}
-      <div className="relative w-full bg-[#2563EB] rounded-2xl p-2 sm:p-3 overflow-hidden shadow-sm mb-6">
+      <div className="relative w-full bg-[#2563EB] rounded-2xl p-2 sm:p-3 overflow-hidden shadow-sm">
         {/* Side perforations */}
         <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-evenly -translate-x-1/2 pointer-events-none z-0">
           {[1,2,3,4,5].map(i => <div key={`l-${i}`} className="w-3 h-3 sm:w-4 sm:h-4 bg-white rounded-full"></div>)}
@@ -379,28 +419,6 @@ const Game = () => {
               })
             ))}
           </div>
-        </div>
-      </div>
-
-      {/* Bottom Instructions */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 px-1 sm:px-2">
-        <div className="flex items-center gap-3.5">
-          <svg className="w-6 h-6 sm:w-8 sm:h-8 text-[#2563EB] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
-          <p className="text-xs sm:text-[13px] font-bold text-[#0F172A] leading-tight">
-            Press the numbers<br/><span className="text-[#64748B] font-semibold">as they are generated</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-3.5">
-          <svg className="w-6 h-6 sm:w-8 sm:h-8 text-[#2563EB] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
-          <p className="text-xs sm:text-[13px] font-bold text-[#0F172A] leading-tight">
-            Check your ticket<br/><span className="text-[#64748B] font-semibold">and claim your prize!</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-3.5">
-          <svg className="w-6 h-6 sm:w-8 sm:h-8 text-[#2563EB] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-          <p className="text-xs sm:text-[13px] font-bold text-[#0F172A] leading-tight">
-            Stay active and<br/><span className="text-[#64748B] font-semibold">enjoy the game!</span>
-          </p>
         </div>
       </div>
     </div>
@@ -483,11 +501,14 @@ const Game = () => {
             <motion.button
               key={prize.id}
               whileHover={canClaim ? { scale: 1.04, y: -1 } : {}}
-              whileTap={canClaim ? { scale: 0.96 } : {}}
-              onClick={() => canClaim && claimPrize(prize.id)}
+              whileTap={{ scale: 0.92, y: 1 }}
+              onClick={() => {
+                triggerTouchFeel();
+                if (canClaim) claimPrize(prize.id);
+              }}
               disabled={!canClaim}
               title={isWon ? `Won by ${prize.winner || 'another player'}` : prize.name}
-              className={`relative overflow-hidden rounded-xl px-3 py-2.5 sm:px-3.5 sm:py-2.5 border transition-all duration-200 select-none flex items-center justify-center text-center font-black text-xs sm:text-sm ${
+              className={`relative overflow-hidden rounded-xl px-3 py-2.5 sm:px-3.5 sm:py-2.5 border transition-all duration-150 select-none flex items-center justify-center text-center font-black text-xs sm:text-sm active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] ${
                 canClaim
                   ? 'bg-gradient-to-b from-[#2563EB] to-[#1D4ED8] text-white border-blue-400/40 shadow-xs cursor-pointer hover:shadow-md hover:from-blue-600 hover:to-indigo-600 ring-2 ring-blue-400/30'
                   : isWon
@@ -625,39 +646,24 @@ const Game = () => {
     </div>
   );
 
-  // Generate Recent Numbers Bar matching exact reference UI (Compact side-by-side fit)
+  // Generate Recent Numbers Bar (Minimized compact size)
   const renderRecentNumbers = () => {
     const recentSix = (drawnNumbers || []).slice(-6).reverse();
 
     return (
-      <div className="w-full mx-auto relative overflow-hidden rounded-[2rem] sm:rounded-full bg-white/95 border border-white/90 p-2.5 sm:p-3 px-3 sm:px-4 shadow-[0_12px_30px_rgba(15,23,42,0.05),inset_0_1px_2px_rgba(255,255,255,1)] flex items-center justify-between gap-2 sm:gap-3 my-2">
-        {/* Background Waves & Leaf Flourish */}
-        <svg className="absolute -left-2 -bottom-2 w-14 h-14 text-emerald-500/10 pointer-events-none" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M17,8C8,10 5,16 3,21C8,20 15,17 17,8Z"/>
-          <path d="M12,2C6,5 4,11 3,16C7,14 11,10 12,2Z" opacity="0.6"/>
-        </svg>
-        <svg className="absolute -right-4 -bottom-4 w-28 h-14 text-emerald-500/10 pointer-events-none" viewBox="0 0 100 40">
-          <path d="M0,40 Q40,10 80,30 T100,0 L100,40 Z" fill="currentColor"/>
-        </svg>
-
+      <div className="w-full max-w-[800px] mx-auto relative overflow-hidden rounded-full bg-white/95 border border-slate-200/80 px-2.5 py-1 sm:px-3 sm:py-1.5 shadow-xs flex items-center justify-between gap-1.5 sm:gap-2.5 my-1">
         {/* Left Side Header */}
-        <div className="flex items-center gap-2 sm:gap-2.5 relative z-10 shrink-0">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-[#00C16E] to-[#00a85e] shadow-[0_4px_12px_rgba(0,193,110,0.35)] flex items-center justify-center text-white shrink-0">
-            <Clock className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.3]" />
+        <div className="flex items-center gap-1.5 relative z-10 shrink-0 pl-1">
+          <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-emerald-500/15 text-emerald-600 flex items-center justify-center shrink-0">
+            <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
           </div>
-          <div>
-            <h3 className="text-[11px] sm:text-xs font-black text-[#0F172A] tracking-wider uppercase leading-none">
-              Recent Numbers
-            </h3>
-            <p className="text-[9.5px] sm:text-[10.5px] font-semibold text-[#64748B] mt-0.5">
-              Latest 6 numbers
-            </p>
-          </div>
-          <div className="h-6 w-[1px] bg-slate-200/80 mx-0.5 hidden sm:block shrink-0" />
+          <span className="text-[10px] sm:text-xs font-black text-[#0F172A] uppercase tracking-wide">
+            Recent
+          </span>
         </div>
 
         {/* Center Numbers Row (Fits all 6 side-by-side cleanly) */}
-        <div className="min-w-0 flex-1 flex items-center justify-start sm:justify-center gap-1.5 sm:gap-2 relative z-10 overflow-x-auto scrollbar-hide py-0.5 px-0.5">
+        <div className="min-w-0 flex-1 flex items-center justify-center gap-1 sm:gap-1.5 relative z-10 overflow-x-auto scrollbar-hide py-0.5 px-1">
           <AnimatePresence mode="popLayout">
             {recentSix.map((num, i) => (
               <motion.div
@@ -665,10 +671,12 @@ const Game = () => {
                 initial={{ scale: 0, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0, opacity: 0 }}
+                onClick={() => replayNumber(num)}
+                title={`క్లిక్ చేసి వినండి: సంఖ్య ${num} (${getTeluguNumberWord(num)})`}
                 className={
-                  i === 0
-                    ? "w-8.5 h-8.5 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-[#00C16E] to-[#00a85e] text-white font-black text-xs sm:text-base shadow-[0_0_14px_rgba(0,193,110,0.4)] ring-2 sm:ring-4 ring-emerald-100 flex items-center justify-center shrink-0 z-10"
-                    : "w-7.5 h-7.5 sm:w-9 sm:h-9 rounded-full bg-white text-[#064E3B] font-black text-[11px] sm:text-xs shadow-[0_2px_6px_rgba(0,0,0,0.06)] border border-slate-100 flex items-center justify-center shrink-0"
+                  (i === 0
+                    ? "w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-br from-[#00C16E] to-[#00a85e] text-white font-black text-[11px] sm:text-xs shadow-[0_0_8px_rgba(0,193,110,0.35)] ring-2 ring-emerald-100 flex items-center justify-center shrink-0 cursor-pointer active:scale-90"
+                    : "w-5.5 h-5.5 sm:w-6.5 sm:h-6.5 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px] sm:text-[11px] border border-slate-200/60 flex items-center justify-center shrink-0 cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 active:scale-90") + " transition-transform"
                 }
               >
                 {num}
@@ -676,18 +684,23 @@ const Game = () => {
             ))}
           </AnimatePresence>
           {recentSix.length === 0 && (
-            <span className="text-[11px] font-semibold text-slate-400 italic">No numbers yet</span>
+            <span className="text-[10.5px] font-semibold text-slate-400 italic">No numbers yet</span>
           )}
         </div>
 
         {/* Right Arrow Circle */}
-        <div 
-          onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
-          className="w-7.5 h-7.5 sm:w-8.5 sm:h-8.5 rounded-full bg-white border border-slate-100/90 text-[#00C16E] shadow-2xs flex items-center justify-center shrink-0 cursor-pointer hover:bg-slate-50 transition-colors relative z-10"
+        <motion.button 
+          type="button"
+          whileTap={{ scale: 0.85 }}
+          onClick={() => {
+            triggerTouchFeel();
+            setIsHistoryExpanded(!isHistoryExpanded);
+          }}
+          className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center shrink-0 cursor-pointer transition-colors relative z-10 outline-none"
           title="Toggle History"
         >
-          <ChevronRight className={`w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5] transition-transform duration-300 ${isHistoryExpanded ? 'rotate-90' : ''}`} />
-        </div>
+          <ChevronRight className={`w-3 h-3 stroke-[2.5] transition-transform duration-300 ${isHistoryExpanded ? 'rotate-90' : ''}`} />
+        </motion.button>
       </div>
     );
   };
@@ -749,9 +762,13 @@ const Game = () => {
             return (
               <div
                 key={`num-board-tile-${num}`}
+                onClick={() => {
+                  if (drawn) replayNumber(num);
+                }}
+                title={drawn ? `క్లిక్ చేసి వినండి: సంఖ్య ${num} (${getTeluguNumberWord(num)})` : `సంఖ్య ${num}`}
                 className={`flex items-center justify-center aspect-square rounded-xl sm:rounded-2xl text-xs sm:text-base font-black transition-all duration-300 select-none ${
                   drawn
-                    ? "bg-gradient-to-b from-[#2563EB] to-[#1D4ED8] text-white shadow-[0_4px_12px_rgba(37,99,235,0.35)] border border-blue-400/40"
+                    ? "bg-gradient-to-b from-[#2563EB] to-[#1D4ED8] text-white shadow-[0_4px_12px_rgba(37,99,235,0.35)] border border-blue-400/40 cursor-pointer hover:scale-105 active:scale-95"
                     : "bg-white text-[#334155] shadow-[0_4px_10px_rgba(0,0,0,0.05)] border border-slate-100"
                 }`}
               >
@@ -847,19 +864,43 @@ const Game = () => {
         <div className="sticky top-4 mx-8 z-50 h-16 glass-nav rounded-[2rem] flex justify-between items-center px-6">
           <div className="flex items-center gap-3">
             <span className="font-extrabold text-[#1B2430] text-lg tracking-tight">Housie</span>
-            <span className="px-3 py-1 rounded-full bg-[#4F8EF7]/10 border border-[#4F8EF7]/20 text-[#4F8EF7] text-xs font-bold">
-              #{ticket.ticketCode}
+            <span 
+              title={ticket.playerName || ticket.ticketCode}
+              className="px-3 py-1 rounded-full bg-[#4F8EF7]/10 border border-[#4F8EF7]/20 text-[#4F8EF7] text-xs font-bold max-w-[180px] truncate"
+            >
+              {ticket.playerName || ticket.ticketCode}
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <div className="flex bg-[#00C16E]/10 border border-[#00C16E]/20 px-3 py-1.5 rounded-full items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[#00C16E] animate-pulse shadow-[0_0_8px_#00C16E]"></span>
               <span className="text-xs font-bold text-[#00a85e]">{onlineCount} Online</span>
             </div>
+            {isVoiceEnabled && (
+              <span 
+                className={`hidden sm:flex text-[11px] font-bold px-3 py-1 rounded-full items-center gap-1.5 border shadow-2xs ${
+                  hasNativeTeluguVoice 
+                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200/80' 
+                    : 'text-amber-700 bg-amber-50 border-amber-200/80'
+                }`}
+                title={voiceNotice || `యాక్టివ్ వాయిస్: ${activeVoiceName || 'తెలుగు'}`}
+              >
+                <span>{hasNativeTeluguVoice ? '🇮🇳' : '🌐'}</span>
+                <span>{hasNativeTeluguVoice ? 'తెలుగు TTS' : 'తెలుగు ఆడియో'}</span>
+              </span>
+            )}
             <motion.button 
-              whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-              onClick={toggleVoice} 
-              className="w-10 h-10 flex items-center justify-center bg-white/50 rounded-full text-xl shadow-sm border border-white/60 text-[#1B2430]"
+              whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.88 }}
+              onClick={() => {
+                triggerTouchFeel();
+                toggleVoice();
+              }} 
+              title={isVoiceEnabled ? 'వాయిస్ ఆఫ్ చేయండి (Mute)' : 'తెలుగు వాయిస్ ఆన్ చేయండి (Unmute)'}
+              className={`w-10 h-10 flex items-center justify-center rounded-full text-xl shadow-sm border transition-all cursor-pointer ${
+                isVoiceEnabled 
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+                  : 'bg-white/50 border-white/60 text-slate-400'
+              }`}
             >
               {isVoiceEnabled ? '🔊' : '🔈'}
             </motion.button>
@@ -877,12 +918,27 @@ const Game = () => {
                 initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
                 className="glass-panel p-8 flex flex-col items-center justify-center relative overflow-hidden h-full"
               >
-                <div className="relative z-10">
+                <div 
+                  className="relative z-10 cursor-pointer"
+                  onClick={() => currentNumber && replayNumber(currentNumber)}
+                  title="వాయిస్ రీప్లే (Replay Telugu Voice)"
+                >
                   <RollingDice finalNumber={currentNumber} isLive={gameState === "LIVE"} size="desktop" logos={logos} />
                 </div>
-                <p className="mt-6 text-[#6B7280] font-bold text-sm tracking-widest uppercase">
-                  {currentNumber ? `Number ${currentNumber}` : 'Waiting...'}
-                </p>
+                <div className="mt-4 flex flex-col items-center">
+                  <p className="text-[#6B7280] font-bold text-sm tracking-widest uppercase">
+                    {currentNumber ? `సంఖ్య ${currentNumber} - ${getTeluguNumberWord(currentNumber)}` : 'Waiting...'}
+                  </p>
+                  {currentNumber && (
+                    <button
+                      onClick={() => replayNumber(currentNumber)}
+                      className="mt-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1 rounded-full flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                      title="వాయిస్ రీప్లే (Replay Telugu Voice)"
+                    >
+                      <span>🔊 వాయిస్ రీప్లే</span>
+                    </button>
+                  )}
+                </div>
                 
                 <div className="mt-6">
                   <GameStatusTimer gameState={gameState} countdown={nextDrawCountdown} pauseCountdown={pauseCountdown} isMobile={false} />
@@ -957,22 +1013,46 @@ const Game = () => {
       <div className="md:hidden flex flex-col w-full relative z-10 pb-28">
         
         {/* Mobile Sticky Glass Header */}
-        <div className="sticky top-0 z-50 glass-nav px-5 py-4 flex justify-between items-center w-full rounded-b-3xl">
-          <div className="flex items-center gap-3">
-            <span className="font-black text-[#1B2430] text-xl tracking-tight">Housie</span>
-            <span className="px-2.5 py-1 rounded-full bg-[#4F8EF7]/10 text-[#4F8EF7] text-[10px] font-bold">
-              #{ticket.ticketCode}
+        <div className="sticky top-0 z-50 glass-nav px-4 py-2 sm:py-2.5 flex justify-between items-center w-full rounded-b-2xl shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-black text-[#1B2430] text-lg tracking-tight">Housie</span>
+            <span 
+              title={ticket.playerName || ticket.ticketCode}
+              className="px-2.5 py-0.5 rounded-full bg-[#4F8EF7]/10 text-[#4F8EF7] text-[11px] font-bold max-w-[130px] truncate"
+            >
+              {ticket.playerName || ticket.ticketCode}
             </span>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex bg-[#00C16E]/10 px-3 py-1.5 rounded-full items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#00C16E] shadow-[0_0_8px_#00C16E] animate-pulse"></span>
+          <div className="flex items-center gap-2">
+            <div className="flex bg-[#00C16E]/10 px-2.5 py-1 rounded-full items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00C16E] shadow-[0_0_8px_#00C16E] animate-pulse"></span>
               <span className="text-[11px] font-bold text-[#00a85e]">{onlineCount}</span>
             </div>
+            {isVoiceEnabled && (
+              <span 
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border ${
+                  hasNativeTeluguVoice 
+                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200/80' 
+                    : 'text-amber-700 bg-amber-50 border-amber-200/80'
+                }`}
+                title={voiceNotice || (hasNativeTeluguVoice ? 'స్థానిక తెలుగు TTS' : 'తెలుగు ఆడియో ఫాల్‌బ్యాక్')}
+              >
+                <span>{hasNativeTeluguVoice ? '🇮🇳' : '🌐'}</span>
+                <span>{hasNativeTeluguVoice ? 'తెలుగు' : 'ఆడియో'}</span>
+              </span>
+            )}
             <motion.button 
-              whileTap={{ scale: 0.9 }}
-              onClick={toggleVoice} 
-              className="w-9 h-9 flex items-center justify-center bg-white border border-white/60 shadow-sm rounded-full text-lg text-[#1B2430]"
+              whileTap={{ scale: 0.88 }}
+              onClick={() => {
+                triggerTouchFeel();
+                toggleVoice();
+              }} 
+              title={isVoiceEnabled ? 'వాయిస్ ఆఫ్ చేయండి' : 'తెలుగు వాయిస్ ఆన్ చేయండి'}
+              className={`w-8 h-8 flex items-center justify-center rounded-full text-base border transition-all cursor-pointer ${
+                isVoiceEnabled 
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs' 
+                  : 'bg-white border-white/60 text-slate-400'
+              }`}
             >
               {isVoiceEnabled ? '🔊' : '🔈'}
             </motion.button>
@@ -980,18 +1060,33 @@ const Game = () => {
         </div>
 
         {/* Tab Content */}
-        <div className="w-full px-4 pt-6">
+        <div className="w-full px-3 sm:px-4 pt-3 sm:pt-4">
           
           {/* TAB 1: GAME */}
-          <div className={`flex flex-col gap-6 ${activeTab === 'game' ? 'block' : 'hidden'}`}>
+          <div className={`flex flex-col gap-2.5 sm:gap-3.5 ${activeTab === 'game' ? 'block' : 'hidden'}`}>
             
             {/* Mobile Hero: Current Number */}
             <div className="flex flex-col items-center justify-center relative">
-              <div className="relative z-10">
+              <div 
+                className="relative z-10 cursor-pointer"
+                onClick={() => currentNumber && replayNumber(currentNumber)}
+                title="వాయిస్ రీప్లే చేయండి (Replay Telugu Voice)"
+              >
                 <RollingDice finalNumber={currentNumber} isLive={gameState === "LIVE"} size="mobile" logos={logos} />
               </div>
+
+              {currentNumber && (
+                <button
+                  type="button"
+                  onClick={() => replayNumber(currentNumber)}
+                  className="mt-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/90 px-3 py-0.5 rounded-full flex items-center gap-1 transition-all shadow-xs cursor-pointer active:scale-95"
+                  title="వాయిస్ రీప్లే (Replay)"
+                >
+                  <span>🔊 {getTeluguNumberWord(currentNumber)} (రీప్లే)</span>
+                </button>
+              )}
               
-              <div className="mt-6">
+              <div className="mt-2 sm:mt-2.5">
                 <GameStatusTimer gameState={gameState} countdown={nextDrawCountdown} pauseCountdown={pauseCountdown} isMobile={true} />
               </div>
             </div>
@@ -1015,39 +1110,60 @@ const Game = () => {
         </div>
 
         {/* Mobile Sticky Bottom Nav (Glass Pill) */}
-        <div className="fixed bottom-6 mb-[env(safe-area-inset-bottom,0px)] left-6 right-6 h-16 glass-nav rounded-full flex justify-between items-center px-2 z-50">
-          <button 
-            onClick={() => setActiveTab('game')} 
-            className="relative flex flex-col items-center justify-center w-1/3 h-full z-10"
+        <div 
+          style={{
+            border: '2px solid rgba(16, 185, 129, 0.85)',
+            boxShadow: '0 0 22px rgba(16, 185, 129, 0.65), 0 0 8px rgba(52, 211, 153, 0.85), 0 8px 32px rgba(16, 185, 129, 0.3)'
+          }}
+          className="fixed bottom-6 mb-[env(safe-area-inset-bottom,0px)] left-6 right-6 h-16 glass-nav rounded-full flex justify-between items-center px-2 z-50"
+        >
+          <motion.button 
+            type="button"
+            whileTap={{ scale: 0.88 }}
+            onClick={() => {
+              triggerTouchFeel();
+              setActiveTab('game');
+            }} 
+            className="relative flex flex-col items-center justify-center w-1/3 h-full z-10 outline-none"
           >
             {activeTab === 'game' && (
               <motion.div layoutId="nav-pill" className="absolute inset-1 bg-[#4F8EF7]/10 rounded-full border border-[#4F8EF7]/20 z-0" />
             )}
             <span className={`text-xl mb-0.5 z-10 transition-transform ${activeTab === 'game' ? 'scale-110' : 'grayscale opacity-50'}`}>🎟️</span>
             <span className={`text-[10px] font-bold z-10 ${activeTab === 'game' ? 'text-[#4F8EF7]' : 'text-[#9CA3AF]'}`}>Game</span>
-          </button>
+          </motion.button>
           
-          <button 
-            onClick={() => setActiveTab('leaderboard')} 
-            className="relative flex flex-col items-center justify-center w-1/3 h-full z-10"
+          <motion.button 
+            type="button"
+            whileTap={{ scale: 0.88 }}
+            onClick={() => {
+              triggerTouchFeel();
+              setActiveTab('leaderboard');
+            }} 
+            className="relative flex flex-col items-center justify-center w-1/3 h-full z-10 outline-none"
           >
             {activeTab === 'leaderboard' && (
               <motion.div layoutId="nav-pill" className="absolute inset-1 bg-[#4F8EF7]/10 rounded-full border border-[#4F8EF7]/20 z-0" />
             )}
             <span className={`text-xl mb-0.5 z-10 transition-transform ${activeTab === 'leaderboard' ? 'scale-110' : 'grayscale opacity-50'}`}>🏆</span>
             <span className={`text-[10px] font-bold z-10 ${activeTab === 'leaderboard' ? 'text-[#4F8EF7]' : 'text-[#9CA3AF]'}`}>Leaderboard</span>
-          </button>
+          </motion.button>
 
-          <button 
-            onClick={() => setActiveTab('history')} 
-            className="relative flex flex-col items-center justify-center w-1/3 h-full z-10"
+          <motion.button 
+            type="button"
+            whileTap={{ scale: 0.88 }}
+            onClick={() => {
+              triggerTouchFeel();
+              setActiveTab('history');
+            }} 
+            className="relative flex flex-col items-center justify-center w-1/3 h-full z-10 outline-none"
           >
              {activeTab === 'history' && (
               <motion.div layoutId="nav-pill" className="absolute inset-1 bg-[#4F8EF7]/10 rounded-full border border-[#4F8EF7]/20 z-0" />
             )}
             <span className={`text-xl mb-0.5 z-10 transition-transform ${activeTab === 'history' ? 'scale-110' : 'grayscale opacity-50'}`}>🔢</span>
             <span className={`text-[10px] font-bold z-10 ${activeTab === 'history' ? 'text-[#4F8EF7]' : 'text-[#9CA3AF]'}`}>Board</span>
-          </button>
+          </motion.button>
         </div>
       </div>
 

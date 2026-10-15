@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
 import useSpeech from '../hooks/useSpeech';
+import { getTeluguNumberWord } from '../utils/teluguNumbers';
 import ThemeToggle from '../components/ThemeToggle';
 
 const Admin = () => {
@@ -116,7 +117,8 @@ const Admin = () => {
   const [nextDrawCountdown, setNextDrawCountdown] = useState(null);
   const socketRef = useRef(null);
 
-  const { isVoiceEnabled, toggleVoice, announceNumber, unlockAudio } = useSpeech();
+  const { isVoiceEnabled, toggleVoice, announceNumber, replayNumber, unlockAudio, voiceNotice, hasNativeTeluguVoice, activeVoiceName } = useSpeech();
+  const [testVoiceNumber, setTestVoiceNumber] = useState(1);
 
   useEffect(() => {
     if (token) {
@@ -1440,8 +1442,21 @@ const Admin = () => {
                 onClick={toggleVoice}
                 className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-semibold text-xs transition-all border cursor-pointer ${isVoiceEnabled ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'bg-brand-card border-brand-border text-brand-text-muted hover:bg-brand-bg'}`}
               >
-                {isVoiceEnabled ? '🔊 Voice ON' : '🔈 Voice OFF'}
+                {isVoiceEnabled ? '🔊 తెలుగు Voice ON' : '🔈 Voice OFF'}
               </button>
+              {isVoiceEnabled && (
+                <span 
+                  className={`text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 border shadow-2xs ${
+                    hasNativeTeluguVoice 
+                      ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border-emerald-500/25' 
+                      : 'text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/25'
+                  }`} 
+                  title={voiceNotice || `యాక్టివ్ వాయిస్: ${activeVoiceName || 'తెలుగు'}`}
+                >
+                  <span>{hasNativeTeluguVoice ? '🇮🇳' : '🌐'}</span>
+                  <span>{hasNativeTeluguVoice ? 'స్థానిక తెలుగు TTS' : 'తెలుగు ఆడియో ఫాల్‌బ్యాక్'}</span>
+                </span>
+              )}
 
               {adminStats?.gameStatus === 'WAITING' && (
                 <>
@@ -1487,6 +1502,46 @@ const Admin = () => {
               <div className="glass-panel-secondary p-6 flex flex-col items-center justify-center border border-slate-200 dark:border-slate-700">
                 <p className="text-sm font-bold text-brand-text-muted mb-2 uppercase tracking-widest">Current Drawn</p>
                 <p className="text-5xl font-black tracking-tight">{adminStats.currentNumber || '-'}</p>
+                {adminStats.currentNumber && (
+                  <>
+                    <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-1.5">
+                      {getTeluguNumberWord(adminStats.currentNumber)}
+                    </p>
+                    <div className="flex items-center gap-2 mt-3 flex-wrap justify-center">
+                      <button
+                        onClick={() => replayNumber(adminStats.currentNumber)}
+                        className="text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                        title="వాయిస్ రీప్లే (Replay Telugu Announcement)"
+                      >
+                        <span>🔊 రీప్లే</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* Manual Telugu Voice Test Caller (1-90) */}
+                <div className="mt-3.5 pt-3 border-t border-brand-border/60 w-full flex flex-col items-center gap-1.5">
+                  <span className="text-[10px] font-bold text-brand-text-muted uppercase tracking-wider">వాయిస్ టెస్ట్ (1-90)</span>
+                  <div className="flex items-center gap-1.5 w-full justify-center">
+                    <select
+                      value={testVoiceNumber}
+                      onChange={(e) => setTestVoiceNumber(Number(e.target.value))}
+                      className="text-xs bg-brand-bg text-brand-text border border-brand-border rounded-xl px-2 py-1 font-bold outline-none cursor-pointer"
+                    >
+                      {Array.from({ length: 90 }, (_, i) => i + 1).map(n => (
+                        <option key={`opt-num-${n}`} value={n}>{n} - {getTeluguNumberWord(n)}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => announceNumber(testVoiceNumber, true)}
+                      className="text-xs font-bold bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-xl flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+                      title="ఎంచుకున్న సంఖ్యను తెలుగులో పలకండి"
+                    >
+                      <span>🔊 టెస్ట్</span>
+                    </button>
+                  </div>
+                </div>
                 {adminStats?.gameStatus === 'LIVE' && (
                   <div className="mt-4 text-xs font-bold text-brand-text-sec bg-brand-card px-4 py-1.5 rounded-full flex items-center justify-center gap-2 animate-pulse border border-brand-border shadow-sm w-max">
                     <span className="w-2 h-2 rounded-full bg-blue-500"></span>
@@ -1572,10 +1627,14 @@ const Admin = () => {
                   return (
                     <div 
                       key={`admin-num-board-${num}`}
+                      onClick={() => {
+                        if (isDrawn) replayNumber(num);
+                      }}
+                      title={isDrawn ? `క్లిక్ చేసి వినండి: సంఖ్య ${num} (${getTeluguNumberWord(num)})` : `సంఖ్య ${num}`}
                       className={`flex items-center justify-center aspect-square rounded-xl sm:rounded-2xl text-xs sm:text-base font-black transition-all duration-300 select-none ${
                         isDrawn
-                          ? "bg-gradient-to-b from-[#2563EB] to-[#1D4ED8] text-white shadow-[0_4px_12px_rgba(37,99,235,0.35)] border border-blue-400/40"
-                          : "bg-white text-[#334155] shadow-[0_4px_10px_rgba(0,0,0,0.05)] border border-slate-100"
+                          ? "bg-gradient-to-b from-[#2563EB] to-[#1D4ED8] text-white shadow-[0_4px_12px_rgba(37,99,235,0.35)] border border-blue-400/40 cursor-pointer hover:scale-105 active:scale-95"
+                          : "bg-white text-[#334155] shadow-[0_4px_10px_rgba(0,0,0,0.05)] border border-slate-100 opacity-60"
                       }`}
                     >
                       {num}

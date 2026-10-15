@@ -107,7 +107,10 @@ const Home = () => {
       setPendingMessage('Request Accepted! Redirecting to game...');
       setError('');
       setSession(data.session);
-      setTicket(data.ticket);
+      setTicket({
+        ...data.ticket,
+        playerName: data.ticket?.playerName || data.player?.name || ''
+      });
 
       setTimeout(() => {
         navigate(`/game/${targetSessionId}`);
