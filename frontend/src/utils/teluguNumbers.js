@@ -108,15 +108,16 @@ export const getTeluguNumberWord = (num) => {
 };
 
 /**
- * Returns the natural Telugu announcement sentence for Housie.
- * e.g., 42 -> "సంఖ్య నలభై రెండు"
+ * Returns the natural Telugu announcement for Housie.
+ * e.g., 42 -> "నలభై రెండు"
+ * Directly returns the Telugu number without 'సంఖ్య' prefix.
  * @param {number|string} num 
  * @returns {string}
  */
 export const getTeluguAnnouncement = (num) => {
   const word = getTeluguNumberWord(num);
   if (!word) return '';
-  return `సంఖ్య ${word}`;
+  return word;
 };
 
 /**

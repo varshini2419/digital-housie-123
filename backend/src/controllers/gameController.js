@@ -104,8 +104,7 @@ exports.getSessionTickets = async (req, res) => {
             .select('ticketCode playerStatus playerName isActive requestStatus createdAt')
             .lean();
 
-        // Sort: user tickets first (requests/names/active/playing), unfilled tickets last.
-        // Within each group, sort numerically by ticketCode in serial order (1, 2, 3...)
+        // Fast natural numeric sort
         rawTickets.sort((a, b) => {
             const aFilled = Boolean(
                 a.requestStatus === 'PENDING' ||
@@ -128,10 +127,10 @@ exports.getSessionTickets = async (req, res) => {
             if (a.requestStatus === 'PENDING' && b.requestStatus !== 'PENDING') return -1;
             if (a.requestStatus !== 'PENDING' && b.requestStatus === 'PENDING') return 1;
 
-            return (a.ticketCode || '').localeCompare(b.ticketCode || '', undefined, {
-                numeric: true,
-                sensitivity: 'base'
-            });
+            const aNum = Number(a.ticketCode);
+            const bNum = Number(b.ticketCode);
+            if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+            return (a.ticketCode || '').localeCompare(b.ticketCode || '');
         });
 
         res.json(rawTickets);
@@ -228,9 +227,10 @@ exports.handleTicketRequest = async (req, res) => {
                     sessionId: id,
                     message: 'Your join request has been accepted!'
                 });
-                io.to(String(id)).emit('request_approved', {
+                io.to(String(id)).emit('ticket_request_status_changed', {
                     ticketCode,
-                    sessionId: id
+                    isActive: true,
+                    requestStatus: 'ACCEPTED'
                 });
             }
             return res.json({ message: 'Join request accepted', ticket });
@@ -246,9 +246,10 @@ exports.handleTicketRequest = async (req, res) => {
                     sessionId: id,
                     message: 'Your join request was declined by the host.'
                 });
-                io.to(String(id)).emit('request_declined', {
+                io.to(String(id)).emit('ticket_request_status_changed', {
                     ticketCode,
-                    sessionId: id
+                    isActive: false,
+                    requestStatus: 'DECLINED'
                 });
             }
             return res.json({ message: 'Join request declined', ticket });
@@ -284,7 +285,7 @@ exports.acceptAllPendingRequests = async (req, res) => {
                     message: 'Your join request has been accepted!'
                 });
             });
-            io.to(String(id)).emit('request_approved', { sessionId: id });
+            io.to(String(id)).emit('all_requests_accepted', { sessionId: id });
         }
 
         res.json({ message: 'All pending join requests accepted', updatedCount: pendingTickets.length });

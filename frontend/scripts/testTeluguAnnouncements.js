@@ -25,7 +25,7 @@ for (let i = 1; i <= 90; i++) {
   }
 
   const announcement = getTeluguAnnouncement(i);
-  if (!announcement || !announcement.startsWith('సంఖ్య ')) {
+  if (!announcement || announcement !== word) {
     console.error(`  FAIL: Invalid announcement sentence for ${i}: "${announcement}"`);
     failed++;
   }
@@ -92,11 +92,11 @@ if (hasVoice2 || bestVoice2 !== null) {
 // 5. Audio Fallback URL generation
 console.log('\n5. Verifying Audio Fallback URL:');
 const testUrl = getTeluguTTSAudioUrl(getTeluguAnnouncement(42), 42);
-if (!testUrl || !testUrl.includes('tl=te')) {
+if (!testUrl || !testUrl.includes('/audio/telugu/42.mp3')) {
   console.error(`  FAIL: Audio URL format unexpected: ${testUrl}`);
   failed++;
 } else {
-  console.log(`  PASSED: Generated valid audio fallback URL for number 42.`);
+  console.log(`  PASSED: Generated valid audio fallback URL for number 42: ${testUrl}`);
 }
 
 console.log('\n----------------------------------------------------');

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import io from 'socket.io-client';
 import useSpeech from '../hooks/useSpeech';
 import { getTeluguNumberWord } from '../utils/teluguNumbers';
@@ -200,7 +200,21 @@ const Admin = () => {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          setSessionTickets(data);
+          setSessionTickets(prev => {
+            if (!prev || prev.length === 0) return data;
+            const prevMap = new Map(prev.map(t => [t.ticketCode, t]));
+            return data.map(serverTicket => {
+              const localTicket = prevMap.get(serverTicket.ticketCode);
+              // Prevent background poll from reverting locally accepted or declined actions
+              if (localTicket && localTicket.requestStatus === 'ACCEPTED' && serverTicket.requestStatus === 'PENDING') {
+                return { ...serverTicket, requestStatus: 'ACCEPTED', isActive: true };
+              }
+              if (localTicket && localTicket.requestStatus === 'DECLINED' && serverTicket.requestStatus === 'PENDING') {
+                return { ...serverTicket, requestStatus: 'DECLINED', isActive: false };
+              }
+              return serverTicket;
+            });
+          });
         }
       }
     } catch (err) {
@@ -289,7 +303,22 @@ const Admin = () => {
           playerName: playerName || t.playerName,
           requestStatus: 'PENDING'
         } : t));
-        if (liveSession?._id) fetchSessionTicketsSilent(liveSession._id);
+      });
+
+      socketRef.current.on('ticket_request_status_changed', ({ ticketCode, isActive, requestStatus }) => {
+        setSessionTickets(prev => prev.map(t => t.ticketCode === ticketCode ? {
+          ...t,
+          isActive,
+          requestStatus
+        } : t));
+      });
+
+      socketRef.current.on('all_requests_accepted', () => {
+        setSessionTickets(prev => prev.map(t => t.requestStatus === 'PENDING' ? {
+          ...t,
+          isActive: true,
+          requestStatus: 'ACCEPTED'
+        } : t));
       });
 
       socketRef.current.on('claim_result', ({ success, message, winnerTicket, winnerName, prizeId }) => {
@@ -517,17 +546,17 @@ const Admin = () => {
   };
 
   const handleTicketRequestAction = async (ticketCode, action) => {
+    const isAccept = action === 'ACCEPT';
+    
+    // Optimistically update local state immediately
+    setSessionTickets(prev => prev.map(t => t.ticketCode === ticketCode ? { 
+      ...t, 
+      isActive: isAccept, 
+      requestStatus: isAccept ? 'ACCEPTED' : 'DECLINED' 
+    } : t));
+
     try {
       const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://127.0.0.1:5000');
-      const isAccept = action === 'ACCEPT';
-      
-      // Optimistically update local state
-      setSessionTickets(prev => prev.map(t => t.ticketCode === ticketCode ? { 
-        ...t, 
-        isActive: isAccept, 
-        requestStatus: isAccept ? 'ACCEPTED' : 'DECLINED' 
-      } : t));
-
       const res = await fetch(`${apiUrl}/api/game/${liveSession._id}/tickets/${ticketCode}/request`, {
         method: 'PUT',
         headers: {
@@ -537,33 +566,28 @@ const Admin = () => {
         body: JSON.stringify({ action })
       });
       
-      let data;
-      try {
-        data = await res.json();
-      } catch (err) {
-        throw new Error('Server returned an invalid response.');
-      }
-      
+      const data = await res.json();
       if (!res.ok) {
         throw new Error(data.message || 'Failed to update request');
       }
     } catch (err) {
       alert(err.message);
+      if (liveSession?._id) fetchSessionTicketsSilent(liveSession._id);
     }
   };
 
   const handleAcceptAllRequests = async () => {
     if (!liveSession?._id) return;
+    
+    // Optimistically update local state for all pending tickets immediately
+    setSessionTickets(prev => prev.map(t => t.requestStatus === 'PENDING' ? {
+      ...t,
+      isActive: true,
+      requestStatus: 'ACCEPTED'
+    } : t));
+
     try {
       const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://127.0.0.1:5000');
-      
-      // Optimistically update local state for all pending tickets
-      setSessionTickets(prev => prev.map(t => t.requestStatus === 'PENDING' ? {
-        ...t,
-        isActive: true,
-        requestStatus: 'ACCEPTED'
-      } : t));
-
       const res = await fetch(`${apiUrl}/api/game/${liveSession._id}/tickets/accept-all`, {
         method: 'PUT',
         headers: {
@@ -572,14 +596,13 @@ const Admin = () => {
         }
       });
 
-      if (res.ok) {
+      if (!res.ok) {
         const data = await res.json();
-        if (data.updatedCount > 0) {
-          fetchSessionTicketsSilent(liveSession._id);
-        }
+        throw new Error(data.message || 'Failed to accept all requests');
       }
     } catch (err) {
       alert(err.message);
+      if (liveSession?._id) fetchSessionTicketsSilent(liveSession._id);
     }
   };
 
@@ -667,13 +690,22 @@ const Admin = () => {
       if (a.requestStatus === 'PENDING' && b.requestStatus !== 'PENDING') return -1;
       if (a.requestStatus !== 'PENDING' && b.requestStatus === 'PENDING') return 1;
 
-      // 3. Serial number order: natural numeric sort on ticketCode (1, 2, 3...)
-      return (a.ticketCode || '').localeCompare(b.ticketCode || '', undefined, {
-        numeric: true,
-        sensitivity: 'base'
-      });
+      // 3. Fast natural numeric sort on ticketCode (1, 2, 3...)
+      const aNum = Number(a.ticketCode);
+      const bNum = Number(b.ticketCode);
+      if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+      return (a.ticketCode || '').localeCompare(b.ticketCode || '');
     });
   };
+
+  const sortedAndFilteredTickets = useMemo(() => {
+    const list = Array.isArray(sessionTickets) ? sessionTickets : [];
+    const filtered = !ticketSearch ? list : list.filter(t => {
+      const q = ticketSearch.trim().toLowerCase();
+      return (t.ticketCode || '').toLowerCase().includes(q) || (t.playerName || '').toLowerCase().includes(q);
+    });
+    return sortTickets(filtered);
+  }, [sessionTickets, ticketSearch]);
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
@@ -1515,13 +1547,7 @@ const Admin = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-border text-sm">
-                  {sortTickets((Array.isArray(sessionTickets) ? sessionTickets : []).filter(t => {
-                    if (!ticketSearch) return true;
-                    const q = ticketSearch.trim().toLowerCase();
-                    const codeMatch = (t.ticketCode || '').toLowerCase().includes(q);
-                    const nameMatch = (t.playerName || '').toLowerCase().includes(q);
-                    return codeMatch || nameMatch;
-                  })).map((ticket, index) => {
+                  {sortedAndFilteredTickets.map((ticket, index) => {
                     const filled = isFilledTicket(ticket);
                     return (
                     <tr key={ticket.ticketCode} className={`transition-colors ${ticket.requestStatus === 'PENDING' ? 'bg-amber-500/10 hover:bg-amber-500/15' : filled ? 'hover:bg-brand-bg/80' : 'hover:bg-brand-bg/40 opacity-70'}`}>
@@ -1829,7 +1855,7 @@ const Admin = () => {
                       onClick={() => {
                         if (isDrawn) replayNumber(num);
                       }}
-                      title={isDrawn ? `క్లిక్ చేసి వినండి: సంఖ్య ${num} (${getTeluguNumberWord(num)})` : `సంఖ్య ${num}`}
+                      title={isDrawn ? `క్లిక్ చేసి వినండి: ${num} (${getTeluguNumberWord(num)})` : `${num}`}
                       className={`flex items-center justify-center aspect-square rounded-xl sm:rounded-2xl text-xs sm:text-base font-black transition-all duration-300 select-none ${
                         isDrawn
                           ? "bg-gradient-to-b from-[#2563EB] to-[#1D4ED8] text-white shadow-[0_4px_12px_rgba(37,99,235,0.35)] border border-blue-400/40 cursor-pointer hover:scale-105 active:scale-95"

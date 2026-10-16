@@ -73,6 +73,13 @@ const Login = () => {
         throw new Error(text || `Server error (${res.status})`);
       }
 
+      if (data.declined) {
+        setRequestStatus('DECLINED');
+        setPendingMessage('');
+        setError(data.message || 'Your join request was declined by the host.');
+        return;
+      }
+
       if (data.pendingApproval) {
         setRequestStatus('PENDING');
         setPendingMessage(data.message || 'Access request sent to host. Waiting for approval...');

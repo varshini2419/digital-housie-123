@@ -72,21 +72,34 @@ exports.login = async (req, res) => {
             }
         }
 
-        // If ticket is not active or not accepted yet, set/update request to PENDING and notify admin
+        // If host declined this ticket request
+        if (ticket.requestStatus === 'DECLINED') {
+            return res.status(200).json({
+                success: false,
+                declined: true,
+                message: 'Your join request was declined by the host.'
+            });
+        }
+
+        // If ticket is not active or not accepted yet, set/update request to PENDING
         if (!ticket.isActive || ticket.requestStatus !== 'ACCEPTED') {
+            const isFirstRequest = ticket.requestStatus !== 'PENDING' || ticket.playerId?.toString() !== player._id.toString();
             ticket.playerId = player._id;
             ticket.playerName = player.fullName;
             ticket.ticketCode = player.mobile; // Assign player mobile to ticket code
             ticket.requestStatus = 'PENDING';
             await ticket.save();
 
-            const io = req.app.get('io');
-            if (io) {
-                io.to(String(session._id)).emit('join_request_created', {
-                    ticketCode: ticket.ticketCode,
-                    playerName: player.fullName,
-                    sessionId: session._id
-                });
+            // Only emit to admin once on initial request, avoiding spam and glitches on 3-second watchdog polls
+            if (isFirstRequest) {
+                const io = req.app.get('io');
+                if (io) {
+                    io.to(String(session._id)).emit('join_request_created', {
+                        ticketCode: ticket.ticketCode,
+                        playerName: player.fullName,
+                        sessionId: session._id
+                    });
+                }
             }
 
             return res.status(200).json({

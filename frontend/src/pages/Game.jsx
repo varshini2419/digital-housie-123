@@ -694,7 +694,7 @@ const Game = () => {
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0, opacity: 0 }}
                 onClick={() => replayNumber(num)}
-                title={`క్లిక్ చేసి వినండి: సంఖ్య ${num} (${getTeluguNumberWord(num)})`}
+                title={`క్లిక్ చేసి వినండి: ${num} (${getTeluguNumberWord(num)})`}
                 className={
                   (i === 0
                     ? "w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-br from-[#00C16E] to-[#00a85e] text-white font-black text-[11px] sm:text-xs shadow-[0_0_8px_rgba(0,193,110,0.35)] ring-2 ring-emerald-100 flex items-center justify-center shrink-0 cursor-pointer active:scale-90"
@@ -787,7 +787,7 @@ const Game = () => {
                 onClick={() => {
                   if (drawn) replayNumber(num);
                 }}
-                title={drawn ? `క్లిక్ చేసి వినండి: సంఖ్య ${num} (${getTeluguNumberWord(num)})` : `సంఖ్య ${num}`}
+                title={drawn ? `క్లిక్ చేసి వినండి: ${num} (${getTeluguNumberWord(num)})` : `${num}`}
                 className={`flex items-center justify-center aspect-square rounded-xl sm:rounded-2xl text-xs sm:text-base font-black transition-all duration-300 select-none ${
                   drawn
                     ? "bg-gradient-to-b from-[#2563EB] to-[#1D4ED8] text-white shadow-[0_4px_12px_rgba(37,99,235,0.35)] border border-blue-400/40 cursor-pointer hover:scale-105 active:scale-95"
@@ -951,7 +951,7 @@ const Game = () => {
                 </div>
                 <div className="mt-4 flex flex-col items-center">
                   <p className="text-[#6B7280] font-bold text-sm tracking-widest uppercase">
-                    {currentNumber ? `సంఖ్య ${currentNumber} - ${getTeluguNumberWord(currentNumber)}` : 'Waiting...'}
+                    {currentNumber ? `${currentNumber} - ${getTeluguNumberWord(currentNumber)}` : 'Waiting...'}
                   </p>
                   {currentNumber && (
                     <button
