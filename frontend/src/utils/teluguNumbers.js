@@ -173,7 +173,7 @@ export const findTeluguVoice = (voices = []) => {
  * - 'custom': Custom TTS provider endpoint
  */
 let audioConfig = {
-  provider: 'google-tts', // 'google-tts' | 'local-clips' | 'custom'
+  provider: 'local-clips', // 'local-clips' (fastest & reliable) | 'proxy-tts' | 'custom'
   localClipsPath: '/audio/telugu',
   customUrlBuilder: null
 };
@@ -194,7 +194,7 @@ export const configureTeluguAudio = (config = {}) => {
  * @returns {string} Audio URL
  */
 export const getTeluguTTSAudioUrl = (text, number = null) => {
-  if (audioConfig.provider === 'local-clips' && number !== null) {
+  if (number !== null) {
     return `${audioConfig.localClipsPath}/${number}.mp3`;
   }
 
@@ -202,8 +202,9 @@ export const getTeluguTTSAudioUrl = (text, number = null) => {
     return audioConfig.customUrlBuilder(text, number);
   }
 
-  // Default: Google Translate TTS keyless fallback
+  // Fallback to backend proxy (prevents Google TTS 404 referer blocking)
   const encoded = encodeURIComponent(text);
-  return `https://translate.google.com/translate_tts?ie=UTF-8&tl=te&client=tw-ob&q=${encoded}`;
+  const apiUrl = typeof window !== 'undefined' && window.location.origin ? window.location.origin : '';
+  return `${apiUrl}/api/tts?lang=te&text=${encoded}`;
 };
 

@@ -15,18 +15,19 @@ const Admin = () => {
   const [ticketCodeMode, setTicketCodeMode] = useState('RANDOM');
   const [startingRegisterNumber, setStartingRegisterNumber] = useState('');
   const [prizes, setPrizes] = useState([
-    { id: 'p1', name: 'Jaldi 5', type: 'Jaldi5', sequence: 1, enabled: true, prizeItem: '', sponsor: '' },
-    { id: 'p2', name: 'Four Corners', type: 'FourCorners', sequence: 1, enabled: true, prizeItem: '', sponsor: '' },
-    { id: 'p3', name: 'Six Corners', type: 'SixCorners', sequence: 1, enabled: true, prizeItem: '', sponsor: '' },
-    { id: 'p4', name: 'Middle Number', type: 'MiddleNumber', sequence: 1, enabled: true, prizeItem: '', sponsor: '' },
-    { id: 'p5', name: 'First Line', type: 'FirstLine', sequence: 1, enabled: true, prizeItem: '', sponsor: '' },
-    { id: 'p6', name: 'Second Line', type: 'SecondLine', sequence: 1, enabled: true, prizeItem: '', sponsor: '' },
-    { id: 'p7', name: 'Third Line', type: 'ThirdLine', sequence: 1, enabled: true, prizeItem: '', sponsor: '' },
-    { id: 'p8', name: 'Full House', type: 'FullHouse', sequence: 1, enabled: true, prizeItem: '', sponsor: '' }
+    { id: 'p1', name: 'Jaldi 5', type: 'Jaldi5', sequence: 1, enabled: true, prizeItem: '', sponsor: '', image: null },
+    { id: 'p2', name: 'Four Corners', type: 'FourCorners', sequence: 1, enabled: true, prizeItem: '', sponsor: '', image: null },
+    { id: 'p3', name: 'Six Corners', type: 'SixCorners', sequence: 1, enabled: true, prizeItem: '', sponsor: '', image: null },
+    { id: 'p4', name: 'Middle Number', type: 'MiddleNumber', sequence: 1, enabled: true, prizeItem: '', sponsor: '', image: null },
+    { id: 'p5', name: 'First Line', type: 'FirstLine', sequence: 1, enabled: true, prizeItem: '', sponsor: '', image: null },
+    { id: 'p6', name: 'Second Line', type: 'SecondLine', sequence: 1, enabled: true, prizeItem: '', sponsor: '', image: null },
+    { id: 'p7', name: 'Third Line', type: 'ThirdLine', sequence: 1, enabled: true, prizeItem: '', sponsor: '', image: null },
+    { id: 'p8', name: 'Full House', type: 'FullHouse', sequence: 1, enabled: true, prizeItem: '', sponsor: '', image: null }
   ]);
   const [customPrizeName, setCustomPrizeName] = useState('');
   const [customPrizeItem, setCustomPrizeItem] = useState('');
   const [customPrizeSponsor, setCustomPrizeSponsor] = useState('');
+  const [customPrizeImage, setCustomPrizeImage] = useState('');
   const [customPrizeType, setCustomPrizeType] = useState('Jaldi5');
 
   const [logo1, setLogo1] = useState('');
@@ -124,8 +125,58 @@ const Admin = () => {
   const [nextDrawCountdown, setNextDrawCountdown] = useState(null);
   const socketRef = useRef(null);
 
-  const { isVoiceEnabled, toggleVoice, announceNumber, replayNumber, unlockAudio, voiceNotice, hasNativeTeluguVoice, activeVoiceName } = useSpeech();
+  const { 
+    isVoiceEnabled, 
+    toggleVoice, 
+    voiceLanguage, 
+    toggleVoiceLanguage, 
+    setVoiceLanguage, 
+    announceNumber, 
+    replayNumber, 
+    unlockAudio, 
+    voiceNotice, 
+    hasNativeTeluguVoice, 
+    activeVoiceName 
+  } = useSpeech();
   const [testVoiceNumber, setTestVoiceNumber] = useState(1);
+
+  const handlePrizeImageUpload = (file, callback) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (PNG, JPG, WEBP).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 400;
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.85);
+        callback(dataUrl);
+      };
+      img.onerror = () => {
+        callback(e.target.result);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     if (token) {
@@ -1163,7 +1214,7 @@ const Admin = () => {
                           </div>
                         </div>
                         
-                        <div className="flex items-center gap-2 w-full pt-1 border-t border-emerald-200/60">
+                        <div className="flex flex-col sm:flex-row items-center gap-2 w-full pt-1 border-t border-emerald-200/60">
                           <input 
                             type="text" 
                             value={prize.prizeItem || ''} 
@@ -1173,7 +1224,7 @@ const Admin = () => {
                               setPrizes(newPrizes);
                             }} 
                             placeholder="Add Prize Item (e.g. Gold Coin)" 
-                            className="flex-1 p-2 rounded-xl bg-white border border-emerald-200 text-slate-800 text-xs outline-none focus:border-emerald-500" 
+                            className="flex-1 p-2 rounded-xl bg-white border border-emerald-200 text-slate-800 text-xs outline-none focus:border-emerald-500 w-full" 
                           />
                           <input 
                             type="text" 
@@ -1184,8 +1235,51 @@ const Admin = () => {
                               setPrizes(newPrizes);
                             }} 
                             placeholder="Sponsor (Optional)" 
-                            className="flex-1 p-2 rounded-xl bg-white border border-emerald-200 text-slate-800 text-xs outline-none focus:border-emerald-500" 
+                            className="flex-1 p-2 rounded-xl bg-white border border-emerald-200 text-slate-800 text-xs outline-none focus:border-emerald-500 w-full" 
                           />
+                          <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
+                            {prize.image ? (
+                              <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-emerald-300 shadow-2xs">
+                                <img 
+                                  src={prize.image} 
+                                  alt="Prize" 
+                                  className="w-7 h-7 rounded-lg object-cover border border-emerald-400"
+                                />
+                                <button 
+                                  type="button" 
+                                  onClick={() => {
+                                    const newPrizes = [...prizes];
+                                    newPrizes[idx].image = null;
+                                    setPrizes(newPrizes);
+                                  }}
+                                  className="text-red-500 hover:text-red-700 text-xs font-bold px-1 cursor-pointer"
+                                  title="Remove Image"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ) : (
+                              <label className="flex items-center gap-1 text-[11px] font-bold bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 px-2.5 py-1.5 rounded-xl cursor-pointer transition-all shadow-2xs whitespace-nowrap">
+                                <span>📷</span>
+                                <span>Attach Image</span>
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  className="hidden" 
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      handlePrizeImageUpload(file, (imgData) => {
+                                        const newPrizes = [...prizes];
+                                        newPrizes[idx].image = imgData;
+                                        setPrizes(newPrizes);
+                                      });
+                                    }
+                                  }}
+                                />
+                              </label>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1196,9 +1290,9 @@ const Admin = () => {
                       <input type="text" value={customPrizeName} onChange={e => setCustomPrizeName(e.target.value)} placeholder="Custom Prize Name" className="flex-1 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs outline-none focus:border-purple-500" />
                       <input type="text" value={customPrizeItem} onChange={e => setCustomPrizeItem(e.target.value)} placeholder="Prize Item (Optional)" className="flex-1 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs outline-none focus:border-purple-500" />
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <input type="text" value={customPrizeSponsor} onChange={e => setCustomPrizeSponsor(e.target.value)} placeholder="Sponsor (Optional)" className="flex-1 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs outline-none focus:border-purple-500" />
-                      <select value={customPrizeType} onChange={e => setCustomPrizeType(e.target.value)} className="flex-1 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs outline-none cursor-pointer">
+                    <div className="flex flex-col sm:flex-row items-center gap-2">
+                      <input type="text" value={customPrizeSponsor} onChange={e => setCustomPrizeSponsor(e.target.value)} placeholder="Sponsor (Optional)" className="flex-1 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs outline-none focus:border-purple-500 w-full" />
+                      <select value={customPrizeType} onChange={e => setCustomPrizeType(e.target.value)} className="flex-1 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs outline-none cursor-pointer w-full">
                         <option value="Jaldi5">Jaldi 5</option>
                         <option value="FourCorners">Four Corners</option>
                         <option value="SixCorners">Six Corners</option>
@@ -1208,15 +1302,47 @@ const Admin = () => {
                         <option value="ThirdLine">Third Line</option>
                         <option value="FullHouse">Full House</option>
                       </select>
+                      <div className="shrink-0 self-start sm:self-auto">
+                        {customPrizeImage ? (
+                          <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-xl border border-purple-200">
+                            <img src={customPrizeImage} alt="Custom" className="w-7 h-7 rounded-lg object-cover" />
+                            <button type="button" onClick={() => setCustomPrizeImage('')} className="text-red-500 font-bold text-xs px-1">✕</button>
+                          </div>
+                        ) : (
+                          <label className="flex items-center gap-1 text-[11px] font-bold bg-slate-100 hover:bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-2 rounded-xl cursor-pointer transition-all whitespace-nowrap">
+                            <span>📷</span>
+                            <span>Attach Image</span>
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              className="hidden" 
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handlePrizeImageUpload(file, setCustomPrizeImage);
+                              }} 
+                            />
+                          </label>
+                        )}
+                      </div>
                       <button type="button" onClick={() => {
                         if(!customPrizeName.trim()) return;
                         const sameType = prizes.filter(p => p.type === customPrizeType);
                         const sequence = sameType.length > 0 ? Math.max(...sameType.map(p => p.sequence)) + 1 : 1;
-                        setPrizes([...prizes, { id: 'cp' + Date.now(), name: customPrizeName, type: customPrizeType, sequence, enabled: true, prizeItem: customPrizeItem, sponsor: customPrizeSponsor }]);
+                        setPrizes([...prizes, { 
+                          id: 'cp' + Date.now(), 
+                          name: customPrizeName, 
+                          type: customPrizeType, 
+                          sequence, 
+                          enabled: true, 
+                          prizeItem: customPrizeItem, 
+                          sponsor: customPrizeSponsor,
+                          image: customPrizeImage || null
+                        }]);
                         setCustomPrizeName('');
                         setCustomPrizeItem('');
                         setCustomPrizeSponsor('');
-                      }} className="bg-purple-600 hover:bg-purple-700 px-4 py-2.5 rounded-xl text-xs font-extrabold text-white transition-all shadow-xs cursor-pointer whitespace-nowrap">Add Prize</button>
+                        setCustomPrizeImage('');
+                      }} className="bg-purple-600 hover:bg-purple-700 px-4 py-2.5 rounded-xl text-xs font-extrabold text-white transition-all shadow-xs cursor-pointer whitespace-nowrap w-full sm:w-auto">Add Prize</button>
                     </div>
                   </div>
                 </div>
@@ -1522,20 +1648,19 @@ const Admin = () => {
                 onClick={toggleVoice}
                 className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-semibold text-xs transition-all border cursor-pointer ${isVoiceEnabled ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'bg-brand-card border-brand-border text-brand-text-muted hover:bg-brand-bg'}`}
               >
-                {isVoiceEnabled ? '🔊 తెలుగు Voice ON' : '🔈 Voice OFF'}
+                {isVoiceEnabled ? '🔊 Voice ON' : '🔈 Voice OFF'}
               </button>
               {isVoiceEnabled && (
-                <span 
-                  className={`text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 border shadow-2xs ${
-                    hasNativeTeluguVoice 
-                      ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border-emerald-500/25' 
-                      : 'text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/25'
-                  }`} 
-                  title={voiceNotice || `యాక్టివ్ వాయిస్: ${activeVoiceName || 'తెలుగు'}`}
+                <button
+                  type="button"
+                  onClick={toggleVoiceLanguage}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl font-bold text-xs transition-all border cursor-pointer bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200 shadow-2xs"
+                  title="వాయిస్ భాష మార్చడానికి క్లిక్ చేయండి (తెలుగు / English)"
                 >
-                  <span>{hasNativeTeluguVoice ? '🇮🇳' : '🌐'}</span>
-                  <span>{hasNativeTeluguVoice ? 'స్థానిక తెలుగు TTS' : 'తెలుగు ఆడియో ఫాల్‌బ్యాక్'}</span>
-                </span>
+                  <span>🌐</span>
+                  <span>{voiceLanguage === 'te' ? '🇮🇳 తెలుగు (Primary)' : '🇬🇧 English'}</span>
+                  <span className="text-[10px] bg-purple-200/80 text-purple-900 px-1.5 py-0.5 rounded-md font-semibold">Change</span>
+                </button>
               )}
 
               {adminStats?.gameStatus === 'WAITING' && (

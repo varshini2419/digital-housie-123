@@ -38,7 +38,9 @@ exports.createSession = async (req, res) => {
         winner: null,
         winnerTicket: null,
         claimedAt: null, 
-        prizeItem: p.prizeItem || null 
+        prizeItem: p.prizeItem || null,
+        sponsor: p.sponsor || null,
+        image: p.image || null
     }));
 
     const generatedSessionId = req.body.sessionId || Math.random().toString(36).substring(2, 8).toUpperCase();

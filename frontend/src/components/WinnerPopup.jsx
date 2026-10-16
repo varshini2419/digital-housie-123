@@ -95,6 +95,17 @@ const WinnerPopup = ({ winner, countdown, onClose, onBackToGame, instanceId = 0,
                 initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ delay: 0.5 }}
                 className="w-full flex flex-col items-center gap-4 mb-10"
               >
+                {/* Prize Image if available */}
+                {(winner?.image || winner?.prizeImage) && (
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-emerald-400 shadow-lg bg-white shrink-0">
+                    <img 
+                      src={winner.image || winner.prizeImage} 
+                      alt={winner.prizeName} 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+
                 {/* Prize Category */}
                 <div className="bg-[#00C16E]/10 border border-[#00C16E]/20 px-8 py-4 rounded-3xl w-full max-w-md shadow-sm relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-24 h-24 bg-[#00C16E]/10 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2"></div>

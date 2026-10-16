@@ -10,6 +10,7 @@ const PrizeSchema = new mongoose.Schema({
     winnerTicket: { type: String, default: null },
     prizeItem: { type: String, default: null },
     sponsor: { type: String, default: null },
+    image: { type: String, default: null },
     claimedAt: { type: Date, default: null },
     status: { type: String, enum: ['LOCKED', 'AVAILABLE', 'COMPLETED'], default: 'AVAILABLE' }
 }, { _id: false });

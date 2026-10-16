@@ -351,7 +351,8 @@ io.on('connection', (socket) => {
                         winnerTicket: ticketCode,
                         winnerName: ticket.playerName || 'Player', 
                         prizeItem: prize.prizeItem || null,
-                        sponsor: prize.sponsor || null
+                        sponsor: prize.sponsor || null,
+                        image: prize.image || null
                     };
 
                     // Log room membership so we can verify every client is targeted
@@ -386,7 +387,8 @@ io.on('connection', (socket) => {
                         winnerTicket: ticketCode,
                         winnerName: ticket.playerName || 'Player',
                         prizeItem: prize.prizeItem || null,
-                        sponsor: prize.sponsor || null
+                        sponsor: prize.sponsor || null,
+                        image: prize.image || null
                     };
                     pauseQueues[sId].push(currentWinnerData);
 
@@ -488,6 +490,7 @@ io.on('connection', (socket) => {
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/game', require('./routes/gameRoutes'));
 app.use('/api/player', require('./routes/playerRoutes'));
+app.use('/api/tts', require('./routes/ttsRoutes'));
 
 app.use(errorHandler);
 

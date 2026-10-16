@@ -42,7 +42,7 @@ const Register = () => {
       }
 
       alert('Successfully Registered. Redirecting to Login...');
-      navigate('/');
+      navigate('/login');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -157,7 +157,7 @@ const Register = () => {
 
         <div className="mt-8 text-center">
           <div className="auth-divider mb-6" />
-          <Link to="/" className="auth-link">
+          <Link to="/login" className="auth-link">
             ALREADY REGISTERED? LOGIN HERE
           </Link>
         </div>

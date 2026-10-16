@@ -126,7 +126,20 @@ const Game = () => {
   const lastGameSyncRef = useRef(0);
   const [isTimerLagging, setIsTimerLagging] = useState(false);
 
-  const { isVoiceEnabled, toggleVoice, announceNumber, replayNumber, announceWinner, unlockAudio, voiceNotice, hasNativeTeluguVoice, activeVoiceName } = useSpeech();
+  const { 
+    isVoiceEnabled, 
+    toggleVoice, 
+    voiceLanguage, 
+    toggleVoiceLanguage, 
+    setVoiceLanguage, 
+    announceNumber, 
+    replayNumber, 
+    announceWinner, 
+    unlockAudio, 
+    voiceNotice, 
+    hasNativeTeluguVoice, 
+    activeVoiceName 
+  } = useSpeech();
 
   const makeWinnerKey = (w) => {
     if (!w) return null;
@@ -603,16 +616,28 @@ const Game = () => {
                 </div>
               </div>
 
-              {/* Details */}
-              <div className="flex flex-col gap-1 text-xs font-bold text-[#475569] relative z-10 pl-1 mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">🎁</span>
-                  <span className="truncate">{prize.prizeItem || 'Prize Item'}</span>
+              {/* Details & Prize Image */}
+              <div className="flex items-start justify-between gap-3 relative z-10 pl-1 mb-2">
+                <div className="flex flex-col gap-1 text-xs font-bold text-[#475569] flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm shrink-0">🎁</span>
+                    <span className="truncate">{prize.prizeItem || 'Prize Item'}</span>
+                  </div>
+                  {prize.sponsor && (
+                    <div className="flex items-center gap-2 text-[#64748B]">
+                      <span className="text-sm shrink-0">💛</span>
+                      <span className="truncate">{prize.sponsor}</span>
+                    </div>
+                  )}
                 </div>
-                {prize.sponsor && (
-                  <div className="flex items-center gap-2 text-[#64748B]">
-                    <span className="text-sm">💛</span>
-                    <span className="truncate">{prize.sponsor}</span>
+
+                {prize.image && (
+                  <div className="shrink-0">
+                    <img 
+                      src={prize.image} 
+                      alt={prize.name} 
+                      className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover border border-slate-200/80 shadow-xs bg-white"
+                    />
                   </div>
                 )}
               </div>
@@ -874,17 +899,19 @@ const Game = () => {
               <span className="text-xs font-bold text-[#00a85e]">{onlineCount} Online</span>
             </div>
             {isVoiceEnabled && (
-              <span 
-                className={`hidden sm:flex text-[11px] font-bold px-3 py-1 rounded-full items-center gap-1.5 border shadow-2xs ${
-                  hasNativeTeluguVoice 
-                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200/80' 
-                    : 'text-amber-700 bg-amber-50 border-amber-200/80'
-                }`}
-                title={voiceNotice || `యాక్టివ్ వాయిస్: ${activeVoiceName || 'తెలుగు'}`}
+              <motion.button
+                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.92 }}
+                onClick={() => {
+                  triggerTouchFeel();
+                  toggleVoiceLanguage();
+                }}
+                className="hidden sm:flex text-[11px] font-extrabold px-3 py-1.5 rounded-full items-center gap-1.5 border shadow-2xs transition-all cursor-pointer bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200"
+                title="వాయిస్ భాష మార్చండి / Change Voice Language (Telugu / English)"
               >
-                <span>{hasNativeTeluguVoice ? '🇮🇳' : '🌐'}</span>
-                <span>{hasNativeTeluguVoice ? 'తెలుగు TTS' : 'తెలుగు ఆడియో'}</span>
-              </span>
+                <span>🌐</span>
+                <span>{voiceLanguage === 'te' ? 'తెలుగు (Primary)' : 'English'}</span>
+                <span className="text-[10px] bg-purple-200/80 text-purple-900 px-1.5 py-0.5 rounded font-bold">Switch</span>
+              </motion.button>
             )}
             <motion.button 
               whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.88 }}
@@ -1026,17 +1053,18 @@ const Game = () => {
               <span className="text-[11px] font-bold text-[#00a85e]">{onlineCount}</span>
             </div>
             {isVoiceEnabled && (
-              <span 
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border ${
-                  hasNativeTeluguVoice 
-                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200/80' 
-                    : 'text-amber-700 bg-amber-50 border-amber-200/80'
-                }`}
-                title={voiceNotice || (hasNativeTeluguVoice ? 'స్థానిక తెలుగు TTS' : 'తెలుగు ఆడియో ఫాల్‌బ్యాక్')}
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => {
+                  triggerTouchFeel();
+                  toggleVoiceLanguage();
+                }}
+                className="text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 border border-purple-200 bg-purple-50 text-purple-700 shadow-2xs cursor-pointer"
+                title="వాయిస్ భాష: తెలుగు / English"
               >
-                <span>{hasNativeTeluguVoice ? '🇮🇳' : '🌐'}</span>
-                <span>{hasNativeTeluguVoice ? 'తెలుగు' : 'ఆడియో'}</span>
-              </span>
+                <span>🌐</span>
+                <span>{voiceLanguage === 'te' ? 'తెలుగు' : 'English'}</span>
+              </motion.button>
             )}
             <motion.button 
               whileTap={{ scale: 0.88 }}

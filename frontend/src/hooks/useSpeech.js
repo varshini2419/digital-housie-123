@@ -3,10 +3,16 @@ import {
   getTeluguAnnouncement, 
   getTeluguWinnerAnnouncement, 
   findTeluguVoice, 
-  isTeluguVoiceAvailable, 
   getTeluguTTSAudioUrl,
   getTeluguNumberWord
 } from '../utils/teluguNumbers';
+import {
+  getEnglishAnnouncement,
+  getEnglishWinnerAnnouncement,
+  findEnglishVoice,
+  getEnglishTTSAudioUrl,
+  getEnglishNumberWord
+} from '../utils/englishNumbers';
 
 const useSpeech = () => {
   const [isVoiceEnabledState, setIsVoiceEnabledState] = useState(() => {
@@ -14,12 +20,18 @@ const useSpeech = () => {
     return saved !== null ? JSON.parse(saved) : true;
   });
   
-  // Ref for socket listeners & async loops to avoid stale closures
+  // Voice language: 'te' (Telugu - primary) or 'en' (English)
+  const [voiceLanguageState, setVoiceLanguageState] = useState(() => {
+    const saved = localStorage.getItem('housie_voice_lang');
+    return saved === 'en' ? 'en' : 'te'; // Telugu is primary default!
+  });
+
   const isVoiceEnabled = useRef(isVoiceEnabledState);
+  const voiceLanguage = useRef(voiceLanguageState);
   
   const [voicesLoaded, setVoicesLoaded] = useState(false);
   const [hasNativeTeluguVoice, setHasNativeTeluguVoice] = useState(false);
-  const [activeVoiceName, setActiveVoiceName] = useState('');
+  const [activeVoiceName, setActiveVoiceName] = useState('తెలుగు వాయిస్ (HD Audio)');
   const [voiceNotice, setVoiceNotice] = useState(null);
   const [currentSpokenNumber, setCurrentSpokenNumber] = useState(null);
 
@@ -33,11 +45,23 @@ const useSpeech = () => {
   const audioCache = useRef(new Map());
   const activeSpeechId = useRef(0);
 
-  // Unlock audio context on user interaction (Safari / iOS & mobile browsers)
+  // Keep refs synced with states
+  useEffect(() => {
+    isVoiceEnabled.current = isVoiceEnabledState;
+    localStorage.setItem('voiceEnabled', JSON.stringify(isVoiceEnabledState));
+  }, [isVoiceEnabledState]);
+
+  useEffect(() => {
+    voiceLanguage.current = voiceLanguageState;
+    localStorage.setItem('housie_voice_lang', voiceLanguageState);
+    setActiveVoiceName(voiceLanguageState === 'te' ? 'తెలుగు వాయిస్ (HD Audio)' : 'English Voice (HD Audio)');
+  }, [voiceLanguageState]);
+
+  // Unlock audio context on first user interaction (Safari/iOS/Chrome autoplay policy)
   const unlockAudio = useCallback(() => {
     if (initialized.current) return;
     initialized.current = true;
-    console.log('[Telugu Voice] Unlocking audio context on first interaction');
+    console.log('[Voice Engine] Unlocking audio context on first interaction');
 
     try {
       if (window.speechSynthesis) {
@@ -54,34 +78,19 @@ const useSpeech = () => {
     } catch (_) {}
   }, []);
 
-  // Detect and configure voices (handling asynchronous load in Chrome/Edge/Safari/Firefox)
+  // Detect available browser voices
   useEffect(() => {
-    let resolved = false;
-
-    const checkVoices = (isFinalAttempt = false) => {
+    const checkVoices = () => {
       if (!window.speechSynthesis) {
         setHasNativeTeluguVoice(false);
-        setActiveVoiceName('తెలుగు ఆడియో ఫాల్‌బ్యాక్');
-        setVoiceNotice('పరికరంలో బ్రౌజర్ స్పీచ్ సపోర్ట్ లేదు. ఆన్‌లైన్ ఆడియో ద్వారా స్వచ్ఛమైన తెలుగులో పలకబడుతోంది.');
         return;
       }
 
       const voices = window.speechSynthesis.getVoices();
-      if (voices.length > 0 || isFinalAttempt) {
+      if (voices.length > 0) {
         setVoicesLoaded(true);
-        resolved = true;
         const teluguVoice = findTeluguVoice(voices);
-        if (teluguVoice) {
-          setHasNativeTeluguVoice(true);
-          setActiveVoiceName(teluguVoice.name);
-          setVoiceNotice(null);
-          console.log(`[Telugu Voice] Detected native Telugu voice: ${teluguVoice.name} (${teluguVoice.lang})`);
-        } else {
-          setHasNativeTeluguVoice(false);
-          setActiveVoiceName('తెలుగు ఆడియో ఫాల్‌బ్యాక్ (Online Audio Fallback)');
-          setVoiceNotice('పరికరంలో స్థానిక తెలుగు వాయిస్ లేదు. హై-క్వాలిటీ ఆడియో ఫాల్‌బ్యాక్ ద్వారా స్వచ్ఛమైన తెలుగులో పలకబడుతోంది.');
-          console.log('[Telugu Voice] Native Telugu voice not installed. High-fidelity audio fallback ready.');
-        }
+        setHasNativeTeluguVoice(!!teluguVoice);
       }
     };
 
@@ -99,18 +108,11 @@ const useSpeech = () => {
         window.speechSynthesis.onvoiceschanged = () => checkVoices();
       }
 
-      // Fallback timer for browsers where onvoiceschanged may not fire
-      const fallbackTimer = setTimeout(() => {
-        if (!resolved) {
-          checkVoices(true);
-        }
-      }, 800);
+      const fallbackTimer = setTimeout(checkVoices, 800);
       timeoutRefs.current.push(fallbackTimer);
 
       window.addEventListener('pointerdown', handleFirstInteraction, { once: true, passive: true });
       window.addEventListener('keydown', handleFirstInteraction, { once: true, passive: true });
-    } else {
-      checkVoices(true);
     }
 
     return () => {
@@ -123,11 +125,6 @@ const useSpeech = () => {
       }
     };
   }, [unlockAudio]);
-
-  // Persist mute/unmute preference
-  useEffect(() => {
-    localStorage.setItem('voiceEnabled', JSON.stringify(isVoiceEnabledState));
-  }, [isVoiceEnabledState]);
 
   const toggleVoice = () => {
     unlockAudio();
@@ -151,8 +148,23 @@ const useSpeech = () => {
     }
   };
 
-  // Playback via high-quality HTML5 Audio fallback (with in-memory cache)
-  const speakWithAudioFallback = (text, number = null, speechId) => {
+  const setVoiceLanguage = (lang) => {
+    unlockAudio();
+    const target = lang === 'en' ? 'en' : 'te';
+    voiceLanguage.current = target;
+    setVoiceLanguageState(target);
+    console.log(`[Voice Engine] Language switched to: ${target === 'te' ? 'Telugu' : 'English'}`);
+  };
+
+  const toggleVoiceLanguage = () => {
+    unlockAudio();
+    const next = voiceLanguage.current === 'te' ? 'en' : 'te';
+    setVoiceLanguage(next);
+    return next;
+  };
+
+  // Play audio clip with caching
+  const playAudioUrl = (url, speechId) => {
     return new Promise((resolve) => {
       try {
         if (currentAudioRef.current) {
@@ -164,7 +176,6 @@ const useSpeech = () => {
           return resolve();
         }
 
-        const url = getTeluguTTSAudioUrl(text, number);
         let audio = audioCache.current.get(url);
         if (!audio) {
           audio = new Audio(url);
@@ -187,41 +198,47 @@ const useSpeech = () => {
 
         audio.onended = done;
         audio.onerror = (e) => {
-          console.warn('[Telugu Voice] Fallback audio playback notice:', e);
+          console.warn('[Voice Engine] Audio playback notice:', e);
           done();
         };
 
         const playPromise = audio.play();
         if (playPromise !== undefined) {
           playPromise.catch((err) => {
-            console.warn('[Telugu Voice] Audio play paused by browser autoplay policy:', err);
+            console.warn('[Voice Engine] Playback paused by browser policy:', err);
             done();
           });
         }
 
-        // Failsafe timeout in case audio stalls
-        const timer = setTimeout(done, 5500);
+        const timer = setTimeout(done, 5000);
         timeoutRefs.current.push(timer);
       } catch (err) {
-        console.error('[Telugu Voice] Fallback audio error:', err);
+        console.error('[Voice Engine] Audio error:', err);
         resolve();
       }
     });
   };
 
-  // Playback via browser Web Speech API (with verified te-IN voice)
-  const speakWithWebSpeech = (text, voice, speechId) => {
+  // Playback via browser Web Speech API
+  const speakWithWebSpeech = (text, lang, speechId) => {
     return new Promise((resolve) => {
-      if (activeSpeechId.current !== speechId) {
+      if (activeSpeechId.current !== speechId || !window.speechSynthesis) {
         return resolve();
       }
 
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'te-IN';
-      if (voice) {
-        utterance.voice = voice;
+      utterance.lang = lang === 'te' ? 'te-IN' : 'en-US';
+      
+      const voices = window.speechSynthesis.getVoices();
+      if (lang === 'te') {
+        const v = findTeluguVoice(voices);
+        if (v) utterance.voice = v;
+      } else {
+        const v = findEnglishVoice(voices);
+        if (v) utterance.voice = v;
       }
-      utterance.rate = 0.88;
+
+      utterance.rate = 0.9;
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
 
@@ -240,37 +257,53 @@ const useSpeech = () => {
 
       utterance.onend = finish;
       utterance.onerror = (e) => {
-        console.warn('[Telugu Voice] Web Speech utterance event:', e);
+        console.warn('[Voice Engine] Utterance event:', e);
         finish();
       };
 
       window.speechSynthesis.speak(utterance);
 
-      // Failsafe for stuck speech engine
       failsafeId = setTimeout(() => {
         if (!finished) {
-          console.warn('[Telugu Voice] Speech utterance failsafe triggered');
           try {
-            window.speechSynthesis.pause();
-            window.speechSynthesis.resume();
             window.speechSynthesis.cancel();
           } catch (_) {}
           finish();
         }
-      }, 5500);
+      }, 5000);
       timeoutRefs.current.push(failsafeId);
     });
   };
 
-  // Primary speech engine router: chooses native Telugu TTS voice or audio fallback
-  const speakTeluguText = async (text, number = null, speechId) => {
-    const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-    const teluguVoice = findTeluguVoice(voices);
+  // Primary speech engine router
+  const speakNumber = async (number, speechId) => {
+    const lang = voiceLanguage.current;
+    console.log(`[Voice Engine] Announcing number ${number} in [${lang === 'te' ? 'Telugu' : 'English'}]`);
+    
+    const audioUrl = lang === 'te' 
+      ? getTeluguTTSAudioUrl('', number) 
+      : getEnglishTTSAudioUrl('', number);
 
-    if (teluguVoice && window.speechSynthesis) {
-      await speakWithWebSpeech(text, teluguVoice, speechId);
-    } else {
-      await speakWithAudioFallback(text, number, speechId);
+    try {
+      await playAudioUrl(audioUrl, speechId);
+    } catch (e) {
+      console.warn('[Voice Engine] Local audio play failed, trying fallback WebSpeech:', e);
+      const text = lang === 'te' ? getTeluguAnnouncement(number) : getEnglishAnnouncement(number);
+      await speakWithWebSpeech(text, lang, speechId);
+    }
+  };
+
+  const speakWinner = async (winnerName, prizeName, speechId) => {
+    const lang = voiceLanguage.current;
+    const winnerUrl = lang === 'te' ? '/audio/telugu/winner.mp3' : '/audio/english/winner.mp3';
+    
+    try {
+      await playAudioUrl(winnerUrl, speechId);
+    } catch (_) {
+      const text = lang === 'te' 
+        ? getTeluguWinnerAnnouncement(winnerName, prizeName) 
+        : getEnglishWinnerAnnouncement(winnerName, prizeName);
+      await speakWithWebSpeech(text, lang, speechId);
     }
   };
 
@@ -288,15 +321,13 @@ const useSpeech = () => {
 
     try {
       if (item.type === 'winner') {
-        await speakTeluguText(item.text, null, currentId);
+        await speakWinner(item.winnerName, item.prizeName, currentId);
       } else if (item.type === 'number') {
         setCurrentSpokenNumber(item.number);
-        const announcement = getTeluguAnnouncement(item.number);
-        console.log(`[Telugu Voice] Announcing: "${announcement}" (Number ${item.number})`);
-        await speakTeluguText(announcement, item.number, currentId);
+        await speakNumber(item.number, currentId);
       }
     } catch (err) {
-      console.error('[Telugu Voice] Error during queue processing:', err);
+      console.error('[Voice Engine] Error during queue processing:', err);
     } finally {
       isSpeaking.current = false;
       setCurrentSpokenNumber(null);
@@ -306,22 +337,21 @@ const useSpeech = () => {
     }
   }, []);
 
-  // Announce number in pure Telugu
+  // Announce number
   const announceNumber = useCallback((number, isReplay = false) => {
     const num = parseInt(number, 10);
     if (isNaN(num) || num < 1 || num > 90) return;
 
-    console.log(`[Telugu Voice] announceNumber called for: ${num} (Replay: ${isReplay})`);
+    console.log(`[Voice Engine] announceNumber called for: ${num} (Replay: ${isReplay}, Lang: ${voiceLanguage.current})`);
 
-    // START COUNTDOWN INSTANTLY! Preserves admin sync and countdown loop
+    // Dispatch speech finished event immediately for flawless sync
     window.dispatchEvent(new CustomEvent('speech_finished', { detail: { number: num } }));
 
     if (!isVoiceEnabled.current) {
-      console.log('[Telugu Voice] Voice muted, skipping playback');
+      console.log('[Voice Engine] Voice muted, skipping playback');
       return;
     }
 
-    // Cancel any previous speech or audio when a new number arrives (prevents overlapping speech)
     activeSpeechId.current += 1;
     if (window.speechSynthesis) {
       window.speechSynthesis.cancel();
@@ -332,16 +362,14 @@ const useSpeech = () => {
     }
     speechQueue.current = [];
 
-    // Strict deduplication check: never repeat consecutive number unless explicitly requested via replay
     if (!isReplay && lastAnnouncedNumber.current === num) {
-      console.log(`[Telugu Voice] Deduplicated consecutive number: ${num}`);
+      console.log(`[Voice Engine] Deduplicated consecutive number: ${num}`);
       return;
     }
 
     lastAnnouncedNumber.current = num;
     speechQueue.current.push({ type: 'number', number: num });
 
-    // Schedule processing with minimal debounce to let cancel finish cleanly
     const id = setTimeout(() => {
       timeoutRefs.current = timeoutRefs.current.filter(ref => ref !== id);
       isSpeaking.current = false;
@@ -350,24 +378,19 @@ const useSpeech = () => {
     timeoutRefs.current.push(id);
   }, [processQueue]);
 
-  // Replay announcement on demand (manual or player replay button)
+  // Replay announcement on demand
   const replayNumber = useCallback((number) => {
     const target = number !== undefined && number !== null ? number : lastAnnouncedNumber.current;
     if (target) {
-      console.log(`[Telugu Voice] Replaying announcement for: ${target}`);
       announceNumber(target, true);
     }
   }, [announceNumber]);
 
-  // Announce winner in pure Telugu
+  // Announce winner
   const announceWinner = useCallback((winnerName, prizeName) => {
     if (!isVoiceEnabled.current) return;
 
-    const teluguText = typeof winnerName === 'string' && !prizeName 
-      ? winnerName // direct string if preformatted
-      : getTeluguWinnerAnnouncement(winnerName, prizeName);
-
-    speechQueue.current.push({ type: 'winner', text: teluguText });
+    speechQueue.current.push({ type: 'winner', winnerName, prizeName });
 
     if (!isSpeaking.current) {
       const id = setTimeout(() => {
@@ -380,7 +403,10 @@ const useSpeech = () => {
 
   return { 
     isVoiceEnabled: isVoiceEnabledState, 
-    toggleVoice, 
+    toggleVoice,
+    voiceLanguage: voiceLanguageState,
+    setVoiceLanguage,
+    toggleVoiceLanguage,
     announceNumber, 
     replayNumber, 
     announceWinner, 
@@ -389,7 +415,8 @@ const useSpeech = () => {
     activeVoiceName,
     voiceNotice,
     currentSpokenNumber,
-    currentTeluguWord: currentSpokenNumber ? getTeluguNumberWord(currentSpokenNumber) : null
+    currentTeluguWord: currentSpokenNumber ? getTeluguNumberWord(currentSpokenNumber) : null,
+    currentEnglishWord: currentSpokenNumber ? getEnglishNumberWord(currentSpokenNumber) : null
   };
 };
 
