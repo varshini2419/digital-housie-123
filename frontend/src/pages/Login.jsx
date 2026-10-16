@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import io from 'socket.io-client';
 import useGameStore from '../store/useGameStore';
@@ -14,8 +14,8 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // Pending request status
-  const [requestStatus, setRequestStatus] = useState(null); // null | 'PENDING' | 'ACCEPTED' | 'REJECTED'
+  // Pending request status: null | 'PENDING' | 'ACCEPTED' | 'DECLINED'
+  const [requestStatus, setRequestStatus] = useState(null);
   const [pendingMessage, setPendingMessage] = useState('');
   
   const { setSession, setTicket } = useGameStore();
@@ -33,8 +33,11 @@ const Login = () => {
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://127.0.0.1:5000')}/api/player/sessions`);
       if (res.ok) {
-        const data = await res.json();
-        setSessions(data);
+        const contentType = res.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await res.json();
+          setSessions(data);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch sessions', err);
@@ -44,107 +47,121 @@ const Login = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    if (error) setError('');
   };
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    unlockAudio();
-    if (!formData.sessionId || !formData.mobile) {
-      setError('Please select a session and enter your registered mobile number.');
-      return;
-    }
-
-    setError('');
-    setLoading(true);
-
+  // Direct login / approval verification helper
+  const handleLoginDirect = useCallback(async (isPolling = false) => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://127.0.0.1:5000')}/api/player/join-session`, {
+      if (!isPolling) setLoading(true);
+
+      const res = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://127.0.0.1:5000')}/api/player/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({ 
+          sessionId: formData.sessionId, 
+          mobile: formData.mobile 
+        })
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type');
+      let data = {};
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(text || `Server error (${res.status})`);
+      }
+
+      if (data.pendingApproval) {
+        setRequestStatus('PENDING');
+        setPendingMessage(data.message || 'Access request sent to host. Waiting for approval...');
+        return;
+      }
 
       if (!res.ok) {
         throw new Error(data.message || 'Login failed');
       }
 
-      if (data.status === 'ACCEPTED') {
-        setSession(data.session);
-        setTicket(data.ticket);
-        localStorage.setItem('playerToken', data.token);
-        localStorage.setItem('ticket', JSON.stringify(data.ticket));
-        localStorage.setItem('sessionId', data.session._id);
-        navigate(`/game/${data.session._id}`);
-      } else if (data.status === 'PENDING') {
+      const targetSessionId = data.session?.id || data.session?._id || data.sessionId;
+      if (!targetSessionId) {
         setRequestStatus('PENDING');
-        setPendingMessage(data.message);
-        listenForApproval(data.requestId, data.session);
-      } else if (data.status === 'REJECTED') {
-        setError('Your join request was rejected by the admin.');
+        setPendingMessage('Waiting for host approval...');
+        return;
       }
+
+      // Host Accepted
+      setRequestStatus('ACCEPTED');
+      setPendingMessage('Request Accepted! Redirecting to game...');
+      setError('');
+      setSession(data.session);
+      setTicket({
+        ...data.ticket,
+        playerName: data.ticket?.playerName || data.player?.name || ''
+      });
+
+      setTimeout(() => {
+        navigate(`/game/${targetSessionId}`);
+      }, 700);
+
     } catch (err) {
-      setError(err.message);
+      if (!isPolling) {
+        setError(err.message || 'An unexpected error occurred.');
+        setRequestStatus(null);
+      }
     } finally {
-      setLoading(false);
+      if (!isPolling) setLoading(false);
     }
+  }, [formData.sessionId, formData.mobile, navigate, setSession, setTicket]);
+
+  const handleLogin = async (e) => {
+    if (e) e.preventDefault();
+    unlockAudio();
+    
+    if (!formData.sessionId || !formData.mobile) {
+      setError('Please select a session and enter your registered mobile number.');
+      return;
+    }
+    
+    setError('');
+    setPendingMessage('');
+    await handleLoginDirect(false);
   };
 
-  const listenForApproval = (reqId, sess) => {
-    const backendUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? window.location.origin : 'http://127.0.0.1:5000');
+  // Socket & polling watchdog while request is PENDING
+  useEffect(() => {
+    if (requestStatus !== 'PENDING') return;
+
+    const interval = setInterval(() => {
+      handleLoginDirect(true);
+    }, 3000);
+
+    // Socket listener for real-time approval / decline
+    const backendUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://127.0.0.1:5000');
     const socket = io(backendUrl);
     socketRef.current = socket;
 
-    socket.emit('joinSession', sess._id);
-
-    socket.on('requestAccepted', (payload) => {
-      if (payload.requestId === reqId || payload.mobile === formData.mobile) {
-        setRequestStatus('ACCEPTED');
-        setSession(payload.session || sess);
-        setTicket(payload.ticket);
-        localStorage.setItem('playerToken', payload.token);
-        localStorage.setItem('ticket', JSON.stringify(payload.ticket));
-        localStorage.setItem('sessionId', sess._id);
-
-        setTimeout(() => {
-          navigate(`/game/${sess._id}`);
-        }, 1200);
-      }
+    socket.emit('join_game', { 
+      sessionId: formData.sessionId, 
+      ticketCode: formData.mobile, 
+      role: 'player' 
     });
 
-    socket.on('requestRejected', (payload) => {
-      if (payload.requestId === reqId || payload.mobile === formData.mobile) {
-        setRequestStatus('REJECTED');
-        setError('Your join request was rejected by the host.');
-      }
+    socket.on('request_approved', () => {
+      handleLoginDirect(false);
     });
 
-    const pollInterval = setInterval(async () => {
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://127.0.0.1:5000')}/api/player/check-request-status/${reqId}`);
-        if (res.ok) {
-          const pollData = await res.json();
-          if (pollData.status === 'ACCEPTED') {
-            clearInterval(pollInterval);
-            setRequestStatus('ACCEPTED');
-            setSession(pollData.session || sess);
-            setTicket(pollData.ticket);
-            localStorage.setItem('playerToken', pollData.token);
-            localStorage.setItem('ticket', JSON.stringify(pollData.ticket));
-            localStorage.setItem('sessionId', sess._id);
-            navigate(`/game/${sess._id}`);
-          } else if (pollData.status === 'REJECTED') {
-            clearInterval(pollInterval);
-            setRequestStatus('REJECTED');
-            setError('Your join request was rejected by the host.');
-          }
-        }
-      } catch (e) {
-        console.error('Polling error', e);
-      }
-    }, 3000);
-  };
+    socket.on('request_declined', ({ message }) => {
+      setRequestStatus('DECLINED');
+      setPendingMessage('');
+      setError(message || 'Your join request was declined by the host.');
+    });
+
+    return () => {
+      clearInterval(interval);
+      socket.disconnect();
+    };
+  }, [requestStatus, formData.mobile, formData.sessionId, handleLoginDirect]);
 
   return (
     <div className="min-h-screen bg-white text-stone-900 px-4 py-8 flex flex-col items-center justify-center relative font-sans">
@@ -167,7 +184,7 @@ const Login = () => {
         </Link>
       </div>
 
-      {/* Central Login Card (White Theme with Golden & Warm Red Highlights) */}
+      {/* Central Login Card */}
       <div className="w-full max-w-md bg-white rounded-3xl p-7 sm:p-9 shadow-[0_12px_40px_rgba(217,119,6,0.08)] border-2 border-amber-200 relative z-10 overflow-hidden">
         
         {/* Top Accent Line */}
@@ -193,7 +210,7 @@ const Login = () => {
             <span className="text-xl">⏳</span>
             <div>
               <div className="font-bold text-sm">Request In Waiting...</div>
-              <div className="text-[11px] opacity-90">{pendingMessage || 'Your join request was sent to the host. Please wait.'}</div>
+              <div className="text-[11px] opacity-90">{pendingMessage || 'Your join request was sent to the host. Please wait for approval.'}</div>
             </div>
           </div>
         )}
@@ -228,7 +245,7 @@ const Login = () => {
                 value={formData.sessionId}
                 onChange={handleChange}
                 disabled={requestStatus === 'PENDING'}
-                className="w-full p-3.5 rounded-xl bg-stone-50 border border-stone-300 text-stone-900 font-semibold text-xs sm:text-sm outline-none focus:border-amber-500 focus:bg-white transition-all cursor-pointer appearance-none pr-10"
+                className="w-full p-3.5 rounded-xl bg-stone-50 border border-stone-300 text-stone-900 font-semibold text-xs sm:text-sm outline-none focus:border-amber-500 focus:bg-white transition-all cursor-pointer appearance-none pr-10 disabled:opacity-75 disabled:cursor-not-allowed"
               >
                 <option value="">-- Choose Active Session --</option>
                 {sessions.map(session => (
@@ -256,11 +273,11 @@ const Login = () => {
               onChange={handleChange}
               disabled={requestStatus === 'PENDING'}
               placeholder="Enter 10-digit mobile number"
-              className="w-full p-3.5 rounded-xl bg-white border border-stone-300 text-stone-900 font-semibold text-xs sm:text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all shadow-xs"
+              className="w-full p-3.5 rounded-xl bg-white border border-stone-300 text-stone-900 font-semibold text-xs sm:text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all shadow-xs disabled:opacity-75 disabled:cursor-not-allowed"
             />
           </div>
 
-          {/* Join Live Game Now Button with Golden Gradient & Warm Shadow */}
+          {/* Join Live Game Now Button */}
           <button
             type="submit"
             disabled={loading || requestStatus === 'PENDING' || requestStatus === 'ACCEPTED'}
