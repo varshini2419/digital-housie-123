@@ -77,16 +77,37 @@ const WinnerPopup = ({ winner, countdown, onClose, onBackToGame, instanceId = 0,
               
               <motion.div 
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-                className="flex flex-col items-center"
+                className="flex flex-col items-center w-full"
               >
-                <h2 className="text-sm sm:text-base font-black text-[#00C16E] uppercase tracking-[0.3em] mb-2">
+                <h2 className="text-sm sm:text-base font-black text-[#00C16E] uppercase tracking-[0.3em] mb-3">
                   🎉 Congratulations! / అభినందనలు! 🎉
                 </h2>
-                <h1 className="text-4xl sm:text-6xl font-black text-[#1B2430] mb-3 leading-tight tracking-tighter drop-shadow-sm">
+
+                {/* Prominent Player Name Presentation */}
+                <motion.div 
+                  initial={{ scale: 0.85, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", damping: 15, stiffness: 180, delay: 0.35 }}
+                  className="inline-flex flex-col sm:flex-row items-center gap-2 sm:gap-3 bg-gradient-to-r from-amber-500/15 via-yellow-400/25 to-amber-500/15 border-2 border-amber-400/60 px-6 sm:px-8 py-3 rounded-3xl sm:rounded-full shadow-md max-w-full mb-4"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-2xl sm:text-3xl drop-shadow-xs">👑</span>
+                    <span className="text-xl sm:text-3xl font-black text-[#1B2430] tracking-tight">
+                      {displayName}
+                    </span>
+                  </div>
+                  {winner?.winnerTicket && (
+                    <span className="text-xs sm:text-sm font-mono font-extrabold text-slate-700 bg-white/95 border border-slate-200/90 px-3 py-1 rounded-full shadow-2xs">
+                      #{winner.winnerTicket}
+                    </span>
+                  )}
+                </motion.div>
+
+                <h1 className="text-3xl sm:text-5xl font-black text-[#1B2430] mb-2 leading-tight tracking-tighter drop-shadow-sm">
                   {winner?.prizeName}
                 </h1>
                 <p className="text-sm sm:text-base font-bold text-emerald-600 mb-6">
-                  మీరు {winner?.prizeName} గెలుచుకున్నారు!
+                  {displayName} గారు {winner?.prizeName} గెలుచుకున్నారు!
                 </p>
               </motion.div>
               
@@ -97,11 +118,11 @@ const WinnerPopup = ({ winner, countdown, onClose, onBackToGame, instanceId = 0,
               >
                 {/* Prize Image if available */}
                 {(winner?.image || winner?.prizeImage) && (
-                  <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-emerald-400 shadow-lg bg-white shrink-0">
+                  <div className="w-36 h-36 sm:w-48 sm:h-48 rounded-3xl overflow-hidden border-2 border-emerald-400/80 shadow-xl bg-white shrink-0 p-2 flex items-center justify-center">
                     <img 
                       src={winner.image || winner.prizeImage} 
                       alt={winner.prizeName} 
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                     />
                   </div>
                 )}
@@ -134,7 +155,7 @@ const WinnerPopup = ({ winner, countdown, onClose, onBackToGame, instanceId = 0,
                       <div className="bg-[#4F8EF7]/10 border border-[#4F8EF7]/20 px-6 py-4 rounded-3xl shadow-sm flex-1 flex flex-col items-center justify-center relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-20 h-20 bg-[#4F8EF7]/10 rounded-full blur-2xl transform translate-x-1/2 -translate-y-1/2"></div>
                         <p className="text-[#3B7CE6] text-[10px] uppercase font-black tracking-widest mb-1.5 flex items-center gap-1.5">
-                          <span className="text-base">🤝</span> Sponsor
+                          <span className="text-base">💛</span> Sponsor
                         </p>
                         <p className="text-xl font-black text-[#4F8EF7] truncate w-full text-center">
                           {winner?.sponsor}

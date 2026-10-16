@@ -617,26 +617,26 @@ const Game = () => {
               </div>
 
               {/* Details & Prize Image */}
-              <div className="flex items-start justify-between gap-3 relative z-10 pl-1 mb-2">
-                <div className="flex flex-col gap-1 text-xs font-bold text-[#475569] flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-3 relative z-10 pl-1 mb-2">
+                <div className="flex flex-col gap-2 text-xs font-bold text-[#475569] flex-1 min-w-0 pr-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm shrink-0">🎁</span>
-                    <span className="truncate">{prize.prizeItem || 'Prize Item'}</span>
+                    <span className="text-base shrink-0">🎁</span>
+                    <span className="text-xs sm:text-sm font-black text-[#1E293B] truncate">{prize.prizeItem || 'Prize Item'}</span>
                   </div>
                   {prize.sponsor && (
-                    <div className="flex items-center gap-2 text-[#64748B]">
-                      <span className="text-sm shrink-0">💛</span>
-                      <span className="truncate">{prize.sponsor}</span>
+                    <div className="flex items-center gap-2 text-[#475569]">
+                      <span className="text-base shrink-0">💛</span>
+                      <span className="text-xs sm:text-sm font-bold truncate">{prize.sponsor}</span>
                     </div>
                   )}
                 </div>
 
                 {prize.image && (
-                  <div className="shrink-0">
+                  <div className="w-[45%] max-w-[150px] aspect-square rounded-2xl border-2 border-slate-200/90 shadow-md bg-white p-2 flex items-center justify-center shrink-0 overflow-hidden hover:scale-105 transition-transform">
                     <img 
                       src={prize.image} 
                       alt={prize.name} 
-                      className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover border border-slate-200/80 shadow-xs bg-white"
+                      className="w-full h-full object-contain rounded-xl"
                     />
                   </div>
                 )}
