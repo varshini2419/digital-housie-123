@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
 import useSpeech from '../hooks/useSpeech';
 import { getTeluguNumberWord } from '../utils/teluguNumbers';
-import ThemeToggle from '../components/ThemeToggle';
 
 const Admin = () => {
   const [token, setToken] = useState(localStorage.getItem('adminToken'));
@@ -702,20 +701,16 @@ const Admin = () => {
 
   if (!token) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-brand-bg relative overflow-hidden px-4 py-12">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white relative overflow-hidden px-4 py-12">
         {/* Multi-color Ambient Glowing Orbs */}
-        <div className="pointer-events-none absolute -top-40 -left-40 w-[550px] h-[550px] bg-gradient-to-tr from-indigo-500/20 to-purple-500/20 rounded-full blur-[120px] mix-blend-screen dark:mix-blend-color-dodge z-0 opacity-70"></div>
-        <div className="pointer-events-none absolute -bottom-40 -right-40 w-[550px] h-[550px] bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 rounded-full blur-[120px] mix-blend-screen dark:mix-blend-color-dodge z-0 opacity-70"></div>
-        <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-purple-500/10 rounded-full blur-[140px] z-0"></div>
-
-        <div className="absolute top-8 right-8 z-20">
-          <ThemeToggle />
-        </div>
+        <div className="pointer-events-none absolute -top-40 -left-40 w-[550px] h-[550px] bg-gradient-to-tr from-indigo-500/10 to-purple-500/10 rounded-full blur-[120px] mix-blend-screen z-0 opacity-70"></div>
+        <div className="pointer-events-none absolute -bottom-40 -right-40 w-[550px] h-[550px] bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 rounded-full blur-[120px] mix-blend-screen z-0 opacity-70"></div>
+        <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-purple-500/5 rounded-full blur-[140px] z-0"></div>
 
         <div className="relative z-10 w-full max-w-lg">
           {/* Top Badge */}
           <div className="flex justify-center mb-6">
-            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-emerald-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-300 shadow-xs">
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-emerald-500/10 border border-purple-500/20 text-purple-600 shadow-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
               🛡️ EXECUTIVE ADMIN PORTAL
             </span>
@@ -739,7 +734,7 @@ const Admin = () => {
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 p-4 rounded-2xl mb-6 text-sm font-semibold text-center flex items-center justify-center gap-2">
+              <div className="bg-red-500/10 border border-red-500/30 text-red-600 p-4 rounded-2xl mb-6 text-sm font-semibold text-center flex items-center justify-center gap-2">
                 <span>⚠️</span> {error}
               </div>
             )}
@@ -787,7 +782,7 @@ const Admin = () => {
                   <button
                     type="button"
                     onClick={() => setShowAdminPassword(prev => !prev)}
-                    className="input-icon input-icon-right text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                    className="input-icon input-icon-right text-slate-400 hover:text-slate-600 cursor-pointer"
                     title={showAdminPassword ? 'Hide Password' : 'Show Password'}
                   >
                     {showAdminPassword ? '👁️' : '🙈'}
@@ -805,7 +800,7 @@ const Admin = () => {
             </form>
 
             <div className="mt-8 pt-6 border-t border-brand-border text-center">
-              <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 flex items-center justify-center gap-1.5 uppercase tracking-wider">
+              <p className="text-[11px] font-bold text-slate-400 flex items-center justify-center gap-1.5 uppercase tracking-wider">
                 <span>🔒</span> 256-Bit Encrypted Admin Session
               </p>
             </div>
@@ -816,11 +811,11 @@ const Admin = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#FFFBEB] via-[#F8FAFC] to-[#F3E8FF] p-4 sm:p-8 font-sans text-slate-800 relative">
-      <div className="max-w-7xl mx-auto bg-white/90 backdrop-blur-xl rounded-[2.5rem] p-6 sm:p-8 shadow-[0_20px_60px_rgba(147,51,234,0.06)] border border-purple-100/80">
+    <div className="min-h-screen bg-[#FAFAFC] p-4 sm:p-8 font-sans text-slate-800 relative">
+      <div className="max-w-7xl mx-auto bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-[0_16px_50px_rgba(15,23,42,0.05)] border border-slate-200">
         
         {/* Top Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 pb-6 border-b border-purple-100/60 gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 pb-6 border-b border-slate-100 gap-4">
           <div className="flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-200 via-amber-100 to-yellow-50 border border-amber-300/60 shadow-xs flex items-center justify-center text-xl shrink-0">
               👑
@@ -836,7 +831,6 @@ const Admin = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <ThemeToggle />
             <button 
               onClick={handleLogout} 
               className="border border-red-200 bg-white text-red-500 hover:bg-red-50 font-bold px-4 py-2.5 rounded-2xl text-xs sm:text-sm flex items-center gap-2 shadow-2xs cursor-pointer transition-all"
@@ -1460,7 +1454,7 @@ const Admin = () => {
               <div className="flex items-center gap-4 mb-2">
                 <button onClick={returnToDashboard} className="text-brand-text-muted hover:text-brand-text text-sm font-semibold transition-colors flex items-center gap-1 cursor-pointer">← Back to Dashboard</button>
                 {liveSession && (
-                  <button onClick={() => setViewMode('monitor')} className="text-blue-600 dark:text-blue-400 hover:underline text-sm font-bold flex items-center gap-1 cursor-pointer">🕹️ Back to Live Monitor</button>
+                  <button onClick={() => setViewMode('monitor')} className="text-blue-600 hover:underline text-sm font-bold flex items-center gap-1 cursor-pointer">🕹️ Back to Live Monitor</button>
                 )}
               </div>
               <h2 className="text-2xl font-bold text-brand-text">Session Tickets: <span className="text-brand-emerald">{liveSession?.sessionName}</span></h2>
@@ -1606,13 +1600,13 @@ const Admin = () => {
                           )}
 
                           {ticket.requestStatus === 'ACCEPTED' && (
-                            <span className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
+                            <span className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 uppercase tracking-wider">
                               Accepted
                             </span>
                           )}
 
                           {ticket.requestStatus === 'DECLINED' && (
-                            <span className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 uppercase tracking-wider">
+                            <span className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-rose-500/15 text-rose-600 border border-rose-500/30 uppercase tracking-wider">
                               Declined
                             </span>
                           )}
@@ -1646,7 +1640,7 @@ const Admin = () => {
             <div className="flex items-center gap-3 flex-wrap">
               <button 
                 onClick={toggleVoice}
-                className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-semibold text-xs transition-all border cursor-pointer ${isVoiceEnabled ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'bg-brand-card border-brand-border text-brand-text-muted hover:bg-brand-bg'}`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-2xl font-semibold text-xs transition-all border cursor-pointer ${isVoiceEnabled ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 shadow-sm' : 'bg-brand-card border-brand-border text-brand-text-muted hover:bg-brand-bg'}`}
               >
                 {isVoiceEnabled ? '🔊 Voice ON' : '🔈 Voice OFF'}
               </button>
@@ -1686,9 +1680,9 @@ const Admin = () => {
               )}
               {adminStats?.gameStatus === 'COMPLETED' && (
                 <>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-bold px-4 py-2 flex items-center gap-2">✓ Game Finished</span>
+                  <span className="text-emerald-600 font-bold px-4 py-2 flex items-center gap-2">✓ Game Finished</span>
                   <button onClick={() => viewSessionTickets(liveSession)} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-premium px-6 py-2 rounded-2xl font-bold text-sm transition-all shadow-sm cursor-pointer">Tickets 🎟️</button>
-                  <button onClick={() => handleDeleteSession(liveSession._id, liveSession.sessionName)} className="bg-red-600/10 border border-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-600 hover:text-white px-4 py-2 rounded-2xl font-bold text-sm transition-all shadow-sm cursor-pointer">Archive Session</button>
+                  <button onClick={() => handleDeleteSession(liveSession._id, liveSession.sessionName)} className="bg-red-600/10 border border-red-500/20 text-red-600 hover:bg-red-600 hover:text-white px-4 py-2 rounded-2xl font-bold text-sm transition-all shadow-sm cursor-pointer">Archive Session</button>
                 </>
               )}
             </div>
@@ -1699,23 +1693,23 @@ const Admin = () => {
               {adminStats?.gameStatus === 'PAUSED' && pauseCountdown > 0 && (
                 <div className="absolute inset-0 z-20 backdrop-blur-md bg-brand-bg/80 flex flex-col items-center justify-center p-6 text-center animate-fade-in border border-brand-border/50 rounded-3xl">
                   <span className="text-2xl mb-1 animate-bounce">🏆</span>
-                  <span className="text-amber-600 dark:text-amber-400 font-bold text-lg mb-1">Prize Verification in Progress</span>
+                  <span className="text-amber-600 font-bold text-lg mb-1">Prize Verification in Progress</span>
                   <span className="text-brand-text-muted text-xs mb-3">Game is paused for validation...</span>
-                  <span className="px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold mt-2">Resuming in {pauseCountdown}s</span>
+                  <span className="px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-xs font-bold mt-2">Resuming in {pauseCountdown}s</span>
                 </div>
               )}
-              <div className="glass-panel-secondary p-6 flex flex-col items-center justify-center border border-slate-200 dark:border-slate-700">
+              <div className="glass-panel-secondary p-6 flex flex-col items-center justify-center border border-slate-200">
                 <p className="text-sm font-bold text-brand-text-muted mb-2 uppercase tracking-widest">Current Drawn</p>
                 <p className="text-5xl font-black tracking-tight">{adminStats.currentNumber || '-'}</p>
                 {adminStats.currentNumber && (
                   <>
-                    <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-1.5">
+                    <p className="text-sm font-bold text-emerald-600 mt-1.5">
                       {getTeluguNumberWord(adminStats.currentNumber)}
                     </p>
                     <div className="flex items-center gap-2 mt-3 flex-wrap justify-center">
                       <button
                         onClick={() => replayNumber(adminStats.currentNumber)}
-                        className="text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                        className="text-xs font-bold text-emerald-700 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
                         title="వాయిస్ రీప్లే (Replay Telugu Announcement)"
                       >
                         <span>🔊 రీప్లే</span>
@@ -1740,7 +1734,7 @@ const Admin = () => {
                     <button
                       type="button"
                       onClick={() => announceNumber(testVoiceNumber, true)}
-                      className="text-xs font-bold bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-xl flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+                      className="text-xs font-bold bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 border border-blue-500/30 px-2.5 py-1 rounded-xl flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
                       title="ఎంచుకున్న సంఖ్యను తెలుగులో పలకండి"
                     >
                       <span>🔊 టెస్ట్</span>
@@ -1780,7 +1774,7 @@ const Admin = () => {
                     return (
                       <div key={prize.id} className={`bg-brand-bg p-4 rounded-2xl border transition-all duration-300 shadow-sm ${isWon ? 'border-l-4 border-l-emerald-500 border-t-brand-border border-r-brand-border border-b-brand-border bg-emerald-500/5' : 'border-brand-border hover:shadow-md'}`}>
                         <div className="flex justify-between items-center mb-1">
-                          <span className={`font-bold text-xs ${isWon ? 'text-emerald-600 dark:text-emerald-400' : 'text-brand-blue'}`}>{prize.name}</span>
+                          <span className={`font-bold text-xs ${isWon ? 'text-emerald-600' : 'text-brand-blue'}`}>{prize.name}</span>
                           <div className="flex items-center gap-2">
                             {prize.prizeItem && <span className="text-xs font-semibold text-brand-text-sec text-right">{prize.prizeItem}</span>}
                             <span className="text-[10px] text-brand-text-muted font-mono uppercase bg-brand-card px-2 py-0.5 rounded-full border border-brand-border">{prize.status}</span>

@@ -840,7 +840,7 @@ const Game = () => {
   };
 
   return (
-    <div className="min-h-screen relative pb-24 md:pb-8" onClick={unlockAudio}>
+    <div className="min-h-screen bg-white relative pb-24 md:pb-8" onClick={unlockAudio}>
       
       {/* Background Animated Gradient Orbs */}
       <div className="bg-orb bg-orb-1"></div>

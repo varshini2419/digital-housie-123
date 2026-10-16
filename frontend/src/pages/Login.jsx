@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import io from 'socket.io-client';
 import useGameStore from '../store/useGameStore';
 import useSpeech from '../hooks/useSpeech';
-import ThemeToggle from '../components/ThemeToggle';
 
 const Login = () => {
   const { unlockAudio } = useSpeech();
@@ -13,43 +12,22 @@ const Login = () => {
     mobile: ''
   });
   const [error, setError] = useState('');
-  const [requestStatus, setRequestStatus] = useState('IDLE'); // 'IDLE' | 'PENDING' | 'ACCEPTED' | 'DECLINED'
-  const [pendingMessage, setPendingMessage] = useState(null);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  
+  // Pending request status
+  const [requestStatus, setRequestStatus] = useState(null); // null | 'PENDING' | 'ACCEPTED' | 'REJECTED'
+  const [pendingMessage, setPendingMessage] = useState('');
+  
   const { setSession, setTicket } = useGameStore();
+  const navigate = useNavigate();
+  const socketRef = useRef(null);
 
   useEffect(() => {
     fetchSessions();
-  }, []);
-
-  useEffect(() => {
-    if (requestStatus !== 'PENDING' || !formData.mobile || !formData.sessionId) return;
-
-    // Check status via HTTP polling every 3 seconds
-    const interval = setInterval(() => {
-      handleLoginDirect(true);
-    }, 3000);
-
-    // Socket listener for real-time approval/decline
-    const socket = io(import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://127.0.0.1:5000'));
-    socket.emit('join_game', { sessionId: formData.sessionId, ticketCode: formData.mobile, role: 'player' });
-
-    socket.on('request_approved', () => {
-      handleLoginDirect(false);
-    });
-
-    socket.on('request_declined', ({ message }) => {
-      setRequestStatus('DECLINED');
-      setPendingMessage(null);
-      setError(message || 'Your join request was declined by the host.');
-    });
-
     return () => {
-      clearInterval(interval);
-      socket.disconnect();
+      if (socketRef.current) socketRef.current.disconnect();
     };
-  }, [requestStatus, formData.mobile, formData.sessionId]);
+  }, []);
 
   const fetchSessions = async () => {
     try {
@@ -66,83 +44,112 @@ const Login = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    if (error) setError('');
   };
 
-  const handleLoginDirect = async (isPolling = false) => {
-    try {
-      if (!isPolling) setLoading(true);
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    unlockAudio();
+    if (!formData.sessionId || !formData.mobile) {
+      setError('Please select a session and enter your registered mobile number.');
+      return;
+    }
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://127.0.0.1:5000')}/api/player/login`, {
+    setError('');
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://127.0.0.1:5000')}/api/player/join-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          sessionId: formData.sessionId, 
-          mobile: formData.mobile 
-        })
+        body: JSON.stringify(formData)
       });
 
       const data = await res.json();
 
-      if (data.pendingApproval) {
-        setRequestStatus('PENDING');
-        setPendingMessage(data.message || 'Access request sent to host. Waiting for approval...');
-        return;
-      }
-
       if (!res.ok) {
-        throw new Error(data.message || 'Failed to login');
+        throw new Error(data.message || 'Login failed');
       }
 
-      const targetSessionId = data.session?.id || data.session?._id || data.sessionId;
-      if (!targetSessionId) {
+      if (data.status === 'ACCEPTED') {
+        setSession(data.session);
+        setTicket(data.ticket);
+        localStorage.setItem('playerToken', data.token);
+        localStorage.setItem('ticket', JSON.stringify(data.ticket));
+        localStorage.setItem('sessionId', data.session._id);
+        navigate(`/game/${data.session._id}`);
+      } else if (data.status === 'PENDING') {
         setRequestStatus('PENDING');
-        setPendingMessage('Waiting for host approval...');
-        return;
+        setPendingMessage(data.message);
+        listenForApproval(data.requestId, data.session);
+      } else if (data.status === 'REJECTED') {
+        setError('Your join request was rejected by the admin.');
       }
-
-      // Host Accepted
-      setRequestStatus('ACCEPTED');
-      setPendingMessage('Request Accepted! Redirecting to game...');
-      setError('');
-      setSession(data.session);
-      setTicket({
-        ...data.ticket,
-        playerName: data.ticket?.playerName || data.player?.name || ''
-      });
-
-      setTimeout(() => {
-        navigate(`/game/${targetSessionId}`);
-      }, 600);
-
     } catch (err) {
-      if (!isPolling) {
-        setError(err.message);
-        setRequestStatus('IDLE');
-      }
+      setError(err.message);
     } finally {
-      if (!isPolling) setLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleLogin = async (e) => {
-    if (e) e.preventDefault();
-    unlockAudio();
-    
-    if (!formData.sessionId || !formData.mobile) {
-      setError('Please select an active session and enter your registered mobile number.');
-      return;
-    }
-    
-    setError('');
-    setPendingMessage(null);
-    await handleLoginDirect(false);
+  const listenForApproval = (reqId, sess) => {
+    const backendUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? window.location.origin : 'http://127.0.0.1:5000');
+    const socket = io(backendUrl);
+    socketRef.current = socket;
+
+    socket.emit('joinSession', sess._id);
+
+    socket.on('requestAccepted', (payload) => {
+      if (payload.requestId === reqId || payload.mobile === formData.mobile) {
+        setRequestStatus('ACCEPTED');
+        setSession(payload.session || sess);
+        setTicket(payload.ticket);
+        localStorage.setItem('playerToken', payload.token);
+        localStorage.setItem('ticket', JSON.stringify(payload.ticket));
+        localStorage.setItem('sessionId', sess._id);
+
+        setTimeout(() => {
+          navigate(`/game/${sess._id}`);
+        }, 1200);
+      }
+    });
+
+    socket.on('requestRejected', (payload) => {
+      if (payload.requestId === reqId || payload.mobile === formData.mobile) {
+        setRequestStatus('REJECTED');
+        setError('Your join request was rejected by the host.');
+      }
+    });
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://127.0.0.1:5000')}/api/player/check-request-status/${reqId}`);
+        if (res.ok) {
+          const pollData = await res.json();
+          if (pollData.status === 'ACCEPTED') {
+            clearInterval(pollInterval);
+            setRequestStatus('ACCEPTED');
+            setSession(pollData.session || sess);
+            setTicket(pollData.ticket);
+            localStorage.setItem('playerToken', pollData.token);
+            localStorage.setItem('ticket', JSON.stringify(pollData.ticket));
+            localStorage.setItem('sessionId', sess._id);
+            navigate(`/game/${sess._id}`);
+          } else if (pollData.status === 'REJECTED') {
+            clearInterval(pollInterval);
+            setRequestStatus('REJECTED');
+            setError('Your join request was rejected by the host.');
+          }
+        }
+      } catch (e) {
+        console.error('Polling error', e);
+      }
+    }, 3000);
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFDF7] dark:bg-[#0B1120] text-[#1C1917] dark:text-[#F5F5F4] px-4 py-8 flex flex-col items-center justify-center relative font-sans">
+    <div className="min-h-screen bg-white text-stone-900 px-4 py-8 flex flex-col items-center justify-center relative font-sans">
       
-      {/* Warm Golden ambient glow */}
+      {/* Warm Golden subtle ambient glow */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute top-10 left-10 w-72 h-72 rounded-full bg-amber-400/10 blur-3xl"></div>
         <div className="absolute bottom-10 right-10 w-72 h-72 rounded-full bg-yellow-400/10 blur-3xl"></div>
@@ -153,37 +160,36 @@ const Login = () => {
       <div className="w-full max-w-md flex items-center justify-between mb-6 z-10">
         <Link 
           to="/" 
-          className="inline-flex items-center gap-2 bg-white dark:bg-stone-800 hover:bg-stone-50 text-stone-700 dark:text-stone-200 px-4 py-2 rounded-xl text-xs font-bold border border-amber-200 dark:border-stone-700 shadow-xs transition-all active:scale-95"
+          className="inline-flex items-center gap-2 bg-white hover:bg-stone-50 text-stone-700 px-4 py-2 rounded-xl text-xs font-bold border border-stone-200 shadow-xs transition-all active:scale-95"
         >
           <span>←</span>
           <span>Back to Home</span>
         </Link>
-        <ThemeToggle />
       </div>
 
-      {/* Central Login Card (Golden Theme with Light Red & Yellow Accents) */}
-      <div className="w-full max-w-md bg-white dark:bg-[#1E293B] rounded-3xl p-7 sm:p-9 shadow-[0_12px_40px_rgba(217,119,6,0.08)] border-2 border-amber-200 dark:border-amber-900/70 relative z-10 overflow-hidden">
+      {/* Central Login Card (White Theme with Golden & Warm Red Highlights) */}
+      <div className="w-full max-w-md bg-white rounded-3xl p-7 sm:p-9 shadow-[0_12px_40px_rgba(217,119,6,0.08)] border-2 border-amber-200 relative z-10 overflow-hidden">
         
-        {/* Top Accent Line: Warm Gold to Yellow with subtle Red highlight */}
+        {/* Top Accent Line */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600"></div>
 
         {/* Badge & Title */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 px-3.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-3 border border-amber-200/80 dark:border-amber-800">
+          <div className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-800 px-3.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-3 border border-amber-200">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
             <span>PLAYER ACCESS PORTAL</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black font-serif text-[#1C1917] dark:text-white leading-tight mb-2">
+          <h1 className="text-2xl sm:text-3xl font-black font-serif text-stone-900 leading-tight mb-2">
             Join Your Game Session
           </h1>
-          <p className="text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-400">
+          <p className="text-xs sm:text-sm font-medium text-stone-600">
             Select your active session and enter your registered mobile number to enter the live game.
           </p>
         </div>
 
         {/* Status Banners */}
         {requestStatus === 'PENDING' && (
-          <div className="bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 p-4 rounded-2xl mb-6 text-xs sm:text-sm flex items-center gap-3 font-semibold shadow-xs animate-pulse">
+          <div className="bg-amber-500/15 border border-amber-500/30 text-amber-900 p-4 rounded-2xl mb-6 text-xs sm:text-sm flex items-center gap-3 font-semibold shadow-xs animate-pulse">
             <span className="text-xl">⏳</span>
             <div>
               <div className="font-bold text-sm">Request In Waiting...</div>
@@ -193,7 +199,7 @@ const Login = () => {
         )}
 
         {requestStatus === 'ACCEPTED' && (
-          <div className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-200 p-4 rounded-2xl mb-6 text-xs sm:text-sm flex items-center gap-3 font-semibold shadow-xs">
+          <div className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 p-4 rounded-2xl mb-6 text-xs sm:text-sm flex items-center gap-3 font-semibold shadow-xs">
             <span className="text-xl">✅</span>
             <div>
               <div className="font-bold text-sm">Request Accepted!</div>
@@ -203,7 +209,7 @@ const Login = () => {
         )}
 
         {error && (
-          <div className="bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 p-3.5 rounded-xl mb-6 text-xs font-bold text-center">
+          <div className="bg-rose-50 border border-rose-300 text-rose-700 p-3.5 rounded-xl mb-6 text-xs font-bold text-center">
             {error}
           </div>
         )}
@@ -212,7 +218,7 @@ const Login = () => {
           
           {/* Select Session */}
           <div>
-            <label htmlFor="sessionId" className="block text-[11px] font-bold uppercase tracking-wider text-stone-700 dark:text-stone-300 mb-1.5">
+            <label htmlFor="sessionId" className="block text-[11px] font-bold uppercase tracking-wider text-stone-700 mb-1.5">
               SELECT ACTIVE GAME SESSION
             </label>
             <div className="relative">
@@ -222,7 +228,7 @@ const Login = () => {
                 value={formData.sessionId}
                 onChange={handleChange}
                 disabled={requestStatus === 'PENDING'}
-                className="w-full p-3.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-amber-200 dark:border-stone-700 text-[#1C1917] dark:text-white font-semibold text-xs sm:text-sm outline-none focus:border-amber-500 focus:bg-white transition-all cursor-pointer appearance-none pr-10"
+                className="w-full p-3.5 rounded-xl bg-stone-50 border border-stone-300 text-stone-900 font-semibold text-xs sm:text-sm outline-none focus:border-amber-500 focus:bg-white transition-all cursor-pointer appearance-none pr-10"
               >
                 <option value="">-- Choose Active Session --</option>
                 {sessions.map(session => (
@@ -239,7 +245,7 @@ const Login = () => {
 
           {/* Mobile Number Input */}
           <div>
-            <label htmlFor="mobile" className="block text-[11px] font-bold uppercase tracking-wider text-stone-700 dark:text-stone-300 mb-1.5">
+            <label htmlFor="mobile" className="block text-[11px] font-bold uppercase tracking-wider text-stone-700 mb-1.5">
               REGISTERED MOBILE NUMBER (PASSWORD)
             </label>
             <input
@@ -250,7 +256,7 @@ const Login = () => {
               onChange={handleChange}
               disabled={requestStatus === 'PENDING'}
               placeholder="Enter 10-digit mobile number"
-              className="w-full p-3.5 rounded-xl bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-[#1C1917] dark:text-white font-semibold text-xs sm:text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all shadow-xs"
+              className="w-full p-3.5 rounded-xl bg-white border border-stone-300 text-stone-900 font-semibold text-xs sm:text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all shadow-xs"
             />
           </div>
 
@@ -277,11 +283,11 @@ const Login = () => {
           </button>
         </form>
 
-        {/* Footer Link to Register with tiny light red ticket badge */}
-        <div className="mt-6 pt-4 border-t border-amber-100 dark:border-stone-800 text-center">
-          <p className="text-xs font-semibold text-stone-500 dark:text-stone-400 flex items-center justify-center gap-1">
+        {/* Footer Link to Register */}
+        <div className="mt-6 pt-4 border-t border-amber-100 text-center">
+          <p className="text-xs font-semibold text-stone-500 flex items-center justify-center gap-1">
             <span>Don't have a ticket yet?</span>
-            <Link to="/register" className="text-amber-700 dark:text-amber-400 font-bold hover:underline ml-1 flex items-center gap-1">
+            <Link to="/register" className="text-amber-700 font-bold hover:underline ml-1 flex items-center gap-1">
               <span className="text-rose-500 text-[10px]">🎟️</span>
               <span>REGISTER HERE</span>
             </Link>

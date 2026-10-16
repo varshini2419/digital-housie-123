@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import ThemeToggle from '../components/ThemeToggle';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -51,14 +50,10 @@ const Register = () => {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden auth-page px-4 py-10 text-[#0F172A]">
-      <div className="pointer-events-none absolute -top-28 -left-24 w-80 h-80 bg-blue-500/15 rounded-full blur-3xl"></div>
-      <div className="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 bg-blue-200/15 rounded-full blur-3xl"></div>
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white/90 to-transparent"></div>
-
-      <div className="absolute top-6 right-6 z-20">
-        <ThemeToggle />
-      </div>
+    <div className="relative min-h-screen overflow-hidden auth-page px-4 py-10 text-[#0F172A] bg-white">
+      <div className="pointer-events-none absolute -top-28 -left-24 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl"></div>
+      <div className="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 bg-amber-200/10 rounded-full blur-3xl"></div>
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white to-transparent"></div>
 
       <div className="relative z-10 mx-auto flex w-full max-w-4xl flex-col items-center justify-center text-center">
         <div className="auth-badge mb-5">✨ Live Multiplayer Housie</div>
