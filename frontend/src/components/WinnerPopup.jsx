@@ -14,7 +14,7 @@ const WinnerPopup = ({ winner, countdown, onClose, onBackToGame, instanceId = 0,
 
   const displayName = winner?.winnerName && winner.winnerName.trim() !== '' && winner.winnerName !== 'Player' 
     ? winner.winnerName 
-    : `Ticket #${winner?.winnerTicket}`;
+    : 'Lucky Winner';
 
   // Unique key per popup instance so Framer Motion never reuses a stale lifecycle
   const popupKey = winner
@@ -83,24 +83,17 @@ const WinnerPopup = ({ winner, countdown, onClose, onBackToGame, instanceId = 0,
                   🎉 Congratulations! / అభినందనలు! 🎉
                 </h2>
 
-                {/* Prominent Player Name Presentation */}
+                {/* Prominent Player Name Presentation (No Phone Number) */}
                 <motion.div 
                   initial={{ scale: 0.85, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ type: "spring", damping: 15, stiffness: 180, delay: 0.35 }}
-                  className="inline-flex flex-col sm:flex-row items-center gap-2 sm:gap-3 bg-gradient-to-r from-amber-500/15 via-yellow-400/25 to-amber-500/15 border-2 border-amber-400/60 px-6 sm:px-8 py-3 rounded-3xl sm:rounded-full shadow-md max-w-full mb-4"
+                  className="inline-flex items-center gap-2.5 bg-gradient-to-r from-amber-500/15 via-yellow-400/25 to-amber-500/15 border-2 border-amber-400/60 px-6 sm:px-8 py-3 rounded-full shadow-md mb-4 max-w-full"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-2xl sm:text-3xl drop-shadow-xs">👑</span>
-                    <span className="text-xl sm:text-3xl font-black text-[#1B2430] tracking-tight">
-                      {displayName}
-                    </span>
-                  </div>
-                  {winner?.winnerTicket && (
-                    <span className="text-xs sm:text-sm font-mono font-extrabold text-slate-700 bg-white/95 border border-slate-200/90 px-3 py-1 rounded-full shadow-2xs">
-                      #{winner.winnerTicket}
-                    </span>
-                  )}
+                  <span className="text-2xl sm:text-3xl drop-shadow-xs">👑</span>
+                  <span className="text-xl sm:text-3xl font-black text-[#1B2430] tracking-tight truncate">
+                    {displayName}
+                  </span>
                 </motion.div>
 
                 <h1 className="text-3xl sm:text-5xl font-black text-[#1B2430] mb-2 leading-tight tracking-tighter drop-shadow-sm">

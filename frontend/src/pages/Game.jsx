@@ -16,7 +16,7 @@ const triggerTouchFeel = () => {
   // 1. Haptic vibration on supported devices (Mobile / Touchscreens)
   if (typeof window !== 'undefined' && 'navigator' in window && 'vibrate' in navigator) {
     try {
-      navigator.vibrate(20);
+      navigator.vibrate([35, 15, 20]);
     } catch (_) {}
   }
 
@@ -35,17 +35,17 @@ const triggerTouchFeel = () => {
     const gain = ctx.createGain();
 
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(240, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(45, ctx.currentTime + 0.035);
+    osc.frequency.setValueAtTime(280, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.045);
 
-    gain.gain.setValueAtTime(0.25, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.035);
+    gain.gain.setValueAtTime(0.35, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.045);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start();
-    osc.stop(ctx.currentTime + 0.035);
+    osc.stop(ctx.currentTime + 0.045);
   } catch (_) {}
 };
 
@@ -65,15 +65,16 @@ const MemoizedNumberChip = React.memo(({ num, isMarked, isPending, canMark, onMa
   return (
     <motion.button 
       type="button"
-      whileTap={{ scale: 0.88, y: 1.5 }}
-      whileHover={canMark ? { scale: 1.02 } : {}}
-      transition={{ type: "spring", stiffness: 600, damping: 25 }}
+      whileTap={{ scale: 0.78, y: 5 }}
+      whileHover={canMark ? { scale: 1.03 } : {}}
+      transition={{ type: "spring", stiffness: 700, damping: 18 }}
       onClick={handleClick}
-      className={`w-full h-full min-h-[3rem] border-r border-b border-blue-300 flex items-center justify-center font-bold text-lg sm:text-2xl lg:text-3xl relative select-none transition-all duration-100 outline-none
-        active:shadow-[inset_0_3px_6px_rgba(0,0,0,0.22)] active:z-20
-        ${!isMarked && !isPending ? `${baseBg} text-[#0F172A] ${canMark ? 'hover:bg-blue-100 cursor-pointer active:bg-blue-200' : 'cursor-pointer active:bg-blue-100/60'}` : ''}
-        ${isMarked ? 'bg-[#10B981] text-white z-10 shadow-sm active:bg-emerald-600' : ''}
-        ${isPending ? 'bg-amber-400 text-amber-900 z-10 animate-pulse' : ''}
+      className={`w-full h-full min-h-[3rem] border-r border-b border-blue-300 flex items-center justify-center font-bold text-lg sm:text-2xl lg:text-3xl relative select-none transition-all duration-75 outline-none
+        shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),_0_2px_0_rgba(147,197,253,0.5)]
+        active:shadow-[inset_0_6px_14px_rgba(0,0,0,0.38),_inset_0_2px_5px_rgba(0,0,0,0.25)] active:z-30 active:brightness-90
+        ${!isMarked && !isPending ? `${baseBg} text-[#0F172A] ${canMark ? 'hover:bg-blue-100 cursor-pointer active:bg-blue-300/80' : 'cursor-pointer active:bg-blue-200/70'}` : ''}
+        ${isMarked ? 'bg-[#10B981] text-white z-10 shadow-sm active:bg-emerald-700 active:brightness-85' : ''}
+        ${isPending ? 'bg-amber-400 text-amber-900 z-10 animate-pulse active:bg-amber-500' : ''}
       `}
     >
       <span className="pointer-events-none drop-shadow-xs">{num}</span>
